@@ -2,6 +2,7 @@
 package provider
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"os"
@@ -39,7 +40,7 @@ func New() (p.Provider, error) {
 }
 
 type Config struct {
-	ApiKey string `pulumi:"apiKey,optional" provider:"secret"`
+	ApiKey *string `pulumi:"apiKey,optional" provider:"secret"`
 
 	client *resend.Client
 }
@@ -52,15 +53,11 @@ func (c *Config) Annotate(a infer.Annotator) {
 var newClient = resend.NewClient
 
 func (c *Config) Configure(context.Context) error {
-	if c.ApiKey == "" {
-		// Read the fallback here rather than via an infer default so the key
-		// never enters the checked inputs, and so never lands in state.
-		c.ApiKey = os.Getenv("RESEND_API_KEY")
-	}
-	if c.ApiKey == "" {
+	apiKey := cmp.Or(deref(c.ApiKey), os.Getenv("RESEND_API_KEY"))
+	if apiKey == "" {
 		return errors.New("no Resend API key: set the `apiKey` provider configuration or the RESEND_API_KEY environment variable")
 	}
-	c.client = newClient(c.ApiKey)
+	c.client = newClient(apiKey)
 	return nil
 }
 

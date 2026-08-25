@@ -406,6 +406,43 @@ func TestConfigureRequiresApiKey(t *testing.T) {
 	assert.NoError(t, s.Configure(p.ConfigureRequest{}))
 }
 
+// Regression test for REPORT.md: with `apiKey` unset (env-var flow), CheckConfig
+// must not materialize the field into the checked provider inputs. When it does,
+// DiffConfig sees `apiKey` as added relative to the bare `{version}` inputs the
+// CLI records on `pulumi import` (and on version bumps), and infer marks any
+// non-version config change as a provider *replacement* — cascading a
+// delete-replace into every resource, including production domains.
+func TestUnsetApiKeyDoesNotReplaceProvider(t *testing.T) {
+	prov, err := New()
+	require.NoError(t, err)
+	s, err := integration.NewServer(t.Context(), Name, semver.MustParse("0.0.2"), integration.WithProvider(prov))
+	require.NoError(t, err)
+	purn := presource.NewURN("stack", "proj", "", "pulumi:providers:resend", "default_0_0_2")
+
+	check, err := s.CheckConfig(p.CheckRequest{
+		Urn:    purn,
+		Inputs: property.NewMap(map[string]property.Value{"version": property.New("0.0.2")}),
+	})
+	require.NoError(t, err)
+	_, materialized := check.Inputs.GetOk("apiKey")
+	assert.False(t, materialized, "unset apiKey must not appear in checked provider inputs")
+
+	// The engine diffs the stored provider inputs (bare {version}, as written by
+	// `pulumi import`) against the freshly checked inputs plus the new version.
+	oldInputs := property.NewMap(map[string]property.Value{"version": property.New("0.0.1")})
+	diff, err := s.DiffConfig(p.DiffRequest{
+		Urn:       purn,
+		State:     oldInputs,
+		OldInputs: oldInputs,
+		Inputs:    check.Inputs.Set("version", property.New("0.0.2")),
+	})
+	require.NoError(t, err)
+	for field, d := range diff.DetailedDiff {
+		assert.NotContains(t, string(d.Kind), "replace", "config field %q must not force provider replacement", field)
+	}
+	assert.False(t, diff.HasChanges)
+}
+
 func TestSchema(t *testing.T) {
 	fake := &fakeDomains{domains: map[string]*resend.Domain{}}
 	s := testServer(t, func(c *resend.Client) { c.Domains = fake })
