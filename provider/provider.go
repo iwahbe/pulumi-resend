@@ -4,6 +4,7 @@ package provider
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 
 	p "github.com/pulumi/pulumi-go-provider"
@@ -45,13 +46,17 @@ type Config struct {
 
 func (c *Config) Annotate(a infer.Annotator) {
 	a.Describe(&c.ApiKey, "The Resend API key. Defaults to the value of the `RESEND_API_KEY` environment variable.")
-	a.SetDefault(&c.ApiKey, "", "RESEND_API_KEY")
 }
 
 // newClient is swapped out in tests to inject fake Resend services.
 var newClient = resend.NewClient
 
 func (c *Config) Configure(context.Context) error {
+	if c.ApiKey == "" {
+		// Read the fallback here rather than via an infer default so the key
+		// never enters the checked inputs, and so never lands in state.
+		c.ApiKey = os.Getenv("RESEND_API_KEY")
+	}
 	if c.ApiKey == "" {
 		return errors.New("no Resend API key: set the `apiKey` provider configuration or the RESEND_API_KEY environment variable")
 	}

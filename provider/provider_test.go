@@ -395,6 +395,15 @@ func TestConfigureRequiresApiKey(t *testing.T) {
 	t.Setenv("RESEND_API_KEY", "")
 	err = s.Configure(p.ConfigureRequest{})
 	assert.ErrorContains(t, err, "RESEND_API_KEY")
+
+	// The environment variable is read at configure time, never through the
+	// checked inputs, so it can't end up in state.
+	t.Setenv("RESEND_API_KEY", "re_from_env")
+	prov, err = New()
+	require.NoError(t, err)
+	s, err = integration.NewServer(t.Context(), Name, semver.MustParse("0.0.1"), integration.WithProvider(prov))
+	require.NoError(t, err)
+	assert.NoError(t, s.Configure(p.ConfigureRequest{}))
 }
 
 func TestSchema(t *testing.T) {
