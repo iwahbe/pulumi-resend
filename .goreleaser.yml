@@ -1,0 +1,29 @@
+version: 2
+project_name: pulumi-resend
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - binary: pulumi-resource-resend
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/iwahbe/pulumi-resend/provider.Version={{ .Version }}
+
+# Pulumi's github:// plugin source expects release assets named
+# pulumi-resource-<name>-v<version>-<os>-<arch>.tar.gz (tar.gz on every OS).
+archives:
+  - name_template: "pulumi-resource-resend-v{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    formats: [tar.gz]
+
+changelog:
+  disable: true
