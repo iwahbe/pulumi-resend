@@ -28,7 +28,7 @@ The provider plugin is distributed via GitHub releases and installs automaticall
 Generate a local SDK for your language with:
 
 ```sh
-pulumi package add github://api.github.com/iwahbe/pulumi-resend
+pulumi package add resend --server github://api.github.com/iwahbe/pulumi-resend
 ```
 
 ## Development
