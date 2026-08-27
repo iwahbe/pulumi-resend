@@ -34,7 +34,11 @@ func (k *ApiKeyArgs) Annotate(a infer.Annotator) {
 }
 
 func (k *ApiKeyState) Annotate(a infer.Annotator) {
-	a.Describe(&k.Token, "The API key credential. Only returned by Resend at creation time.")
+	a.Describe(&k.Token, "The API key credential. Only returned by Resend at creation time; empty after import.")
+}
+
+func (*ApiKey) WireDependencies(f infer.FieldSelector, args *ApiKeyArgs, state *ApiKeyState) {
+	f.OutputField(&state.Token).AlwaysSecret()
 }
 
 func (*ApiKey) Create(

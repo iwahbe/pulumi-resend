@@ -23,7 +23,7 @@ type WebhookState struct {
 }
 
 func (w *Webhook) Annotate(a infer.Annotator) {
-	a.Describe(&w, "A Resend webhook that delivers events to an HTTPS endpoint.")
+	a.Describe(&w, "A Resend webhook that delivers events to an HTTPS endpoint. If Resend omits the `signingSecret` during import or read, the provider returns an empty secret for imports and preserves any existing state value during refreshes.")
 }
 
 func (w *WebhookArgs) Annotate(a infer.Annotator) {
@@ -32,7 +32,11 @@ func (w *WebhookArgs) Annotate(a infer.Annotator) {
 }
 
 func (w *WebhookState) Annotate(a infer.Annotator) {
-	a.Describe(&w.SigningSecret, "The secret used to verify webhook payload signatures.")
+	a.Describe(&w.SigningSecret, "The secret used to verify webhook payload signatures; may be empty after import if Resend does not return it.")
+}
+
+func (*Webhook) WireDependencies(f infer.FieldSelector, args *WebhookArgs, state *WebhookState) {
+	f.OutputField(&state.SigningSecret).AlwaysSecret()
 }
 
 func (*Webhook) Create(

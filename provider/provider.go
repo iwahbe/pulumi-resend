@@ -11,6 +11,7 @@ import (
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/property"
 	"github.com/resend/resend-go/v4"
 )
 
@@ -20,7 +21,7 @@ const Name = "resend"
 var Version = "0.0.0-dev"
 
 func New() (p.Provider, error) {
-	return infer.NewProviderBuilder().
+	prov, err := infer.NewProviderBuilder().
 		WithDisplayName("Resend").
 		WithDescription("A Pulumi provider for managing Resend email infrastructure.").
 		WithNamespace("iwahbe").
@@ -37,6 +38,35 @@ func New() (p.Provider, error) {
 			infer.Resource(&Webhook{}),
 		).
 		Build()
+	if err != nil {
+		return p.Provider{}, err
+	}
+
+	// infer applies dependency-based secret annotations on create/update, but not
+	// on read. Re-apply the write-only secret annotations here so refreshes and
+	// imports never downgrade these outputs to plaintext in raw provider responses.
+	read := prov.Read
+	prov.Read = func(ctx context.Context, req p.ReadRequest) (p.ReadResponse, error) {
+		resp, err := read(ctx, req)
+		if err != nil || resp.ID == "" {
+			return resp, err
+		}
+		switch req.Urn.Type() {
+		case "resend:index:ApiKey":
+			resp.Properties = markSecretProperty(resp.Properties, "token")
+		case "resend:index:Webhook":
+			resp.Properties = markSecretProperty(resp.Properties, "signingSecret")
+		}
+		return resp, nil
+	}
+	return prov, nil
+}
+
+func markSecretProperty(m property.Map, key string) property.Map {
+	if v, ok := m.GetOk(key); ok {
+		m = m.Set(key, v.WithSecret(true))
+	}
+	return m
 }
 
 type Config struct {
