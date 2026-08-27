@@ -22,7 +22,7 @@ webhook signing secret from later reads. On refresh or update, this provider kee
 any existing secret value already present in Pulumi state. On import, there is no
 prior state to preserve, so unrecoverable values are recorded as empty secret
 outputs (`ApiKey.token`, and `Webhook.signingSecret` when Resend omits it). If you
-need those values after import, rotate/recreate the API key or webhook in Resend.
+need those values after import, use [`pulumi state taint`](https://www.pulumi.com/docs/iac/cli/commands/pulumi_state_taint/) to force resource recreation.
 
 ## Configuration
 
