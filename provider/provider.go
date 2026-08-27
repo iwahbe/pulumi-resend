@@ -42,9 +42,10 @@ func New() (p.Provider, error) {
 		return p.Provider{}, err
 	}
 
-	// infer applies dependency-based secret annotations on create/update, but not
-	// on read. Re-apply the write-only secret annotations here so refreshes and
-	// imports never downgrade these outputs to plaintext in raw provider responses.
+	// infer applies dependency-based secret annotations on create/update. Read
+	// preserves existing secret markers from state, but import-like reads with no
+	// prior state do not get AlwaysSecret markers, so apply them here to keep
+	// write-only outputs secret in all raw Read responses.
 	read := prov.Read
 	prov.Read = func(ctx context.Context, req p.ReadRequest) (p.ReadResponse, error) {
 		resp, err := read(ctx, req)
