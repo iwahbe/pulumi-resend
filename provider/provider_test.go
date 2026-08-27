@@ -44,6 +44,7 @@ func urn(typ, name string) presource.URN {
 type fakeDomains struct {
 	resend.DomainsSvc
 	domains           map[string]*resend.Domain
+	updates           []resend.UpdateDomainRequest
 	getsUntilVerified int
 	verified          bool
 }
@@ -93,6 +94,7 @@ func (f *fakeDomains) UpdateWithContext(ctx context.Context, id string, params *
 	if !ok {
 		return resend.Domain{}, fmt.Errorf("[ERROR]: Domain not found")
 	}
+	f.updates = append(f.updates, *params)
 	d.ClickTracking = params.ClickTracking
 	d.OpenTracking = params.OpenTracking
 	if params.TrackingSubdomain != "" {
@@ -187,6 +189,109 @@ func TestDomainLifecycle(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "", read.ID)
+}
+
+func TestDomainSetToUnsetUpdateSemantics(t *testing.T) {
+	fake := &fakeDomains{domains: map[string]*resend.Domain{}}
+	s := testServer(t, func(c *resend.Client) { c.Domains = fake })
+
+	inputs := property.NewMap(map[string]property.Value{
+		"name":          property.New("example.com"),
+		"openTracking":  property.New(true),
+		"clickTracking": property.New(true),
+		"tls":           property.New("enforced"),
+	})
+	created, err := s.Create(p.CreateRequest{Urn: urn("Domain", "unset"), Properties: inputs})
+	require.NoError(t, err)
+	fake.updates = nil // create sets tls via the update API; only inspect the subsequent update.
+
+	unsetInputs := property.NewMap(map[string]property.Value{"name": property.New("example.com")})
+	diff, err := s.Diff(p.DiffRequest{
+		Urn: urn("Domain", "unset"), ID: created.ID,
+		State: created.Properties, OldInputs: inputs, Inputs: unsetInputs,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]p.PropertyDiff{
+		"openTracking":  {Kind: p.Update, InputDiff: true},
+		"clickTracking": {Kind: p.Update, InputDiff: true},
+		"tls":           {Kind: p.Update, InputDiff: true},
+	}, diff.DetailedDiff)
+
+	updated, err := s.Update(p.UpdateRequest{
+		Urn: urn("Domain", "unset"), ID: created.ID,
+		State: created.Properties, OldInputs: inputs, Inputs: unsetInputs,
+	})
+	require.NoError(t, err)
+	require.Len(t, fake.updates, 1)
+	payload := map[string]any{}
+	require.NoError(t, json.Unmarshal(mustMarshalJSON(t, fake.updates[0]), &payload))
+	assert.Equal(t, map[string]any{
+		"open_tracking":  false,
+		"click_tracking": false,
+		"tls":            "opportunistic",
+	}, payload)
+	for _, key := range []string{"openTracking", "clickTracking", "tls"} {
+		_, ok := updated.Properties.GetOk(key)
+		assert.False(t, ok, "%s should remain unset in provider inputs/state", key)
+	}
+}
+
+func TestDomainTrackingSubdomainSetToUnsetRequiresReplacement(t *testing.T) {
+	fake := &fakeDomains{domains: map[string]*resend.Domain{}}
+	s := testServer(t, func(c *resend.Client) { c.Domains = fake })
+
+	inputs := property.NewMap(map[string]property.Value{
+		"name":              property.New("example.com"),
+		"trackingSubdomain": property.New("links"),
+	})
+	created, err := s.Create(p.CreateRequest{Urn: urn("Domain", "tracking"), Properties: inputs})
+	require.NoError(t, err)
+	unsetInputs := property.NewMap(map[string]property.Value{"name": property.New("example.com")})
+
+	diff, err := s.Diff(p.DiffRequest{
+		Urn: urn("Domain", "tracking"), ID: created.ID,
+		State: created.Properties, OldInputs: inputs, Inputs: unsetInputs,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]p.PropertyDiff{
+		"trackingSubdomain": {Kind: p.UpdateReplace, InputDiff: true},
+	}, diff.DetailedDiff)
+
+	_, err = s.Update(p.UpdateRequest{
+		Urn: urn("Domain", "tracking"), ID: created.ID,
+		State: created.Properties, OldInputs: inputs, Inputs: unsetInputs,
+	})
+	assert.ErrorContains(t, err, "clearing trackingSubdomain requires replacement")
+}
+
+func TestDomainReadPreservesUnsetOptionalInputs(t *testing.T) {
+	fake := &fakeDomains{domains: map[string]*resend.Domain{
+		"dom_1": {
+			Id: "dom_1", Name: "example.com", Status: resend.DomainStatusVerified,
+			Region: "us-east-1", OpenTracking: true, ClickTracking: true, TrackingSubdomain: "links",
+		},
+	}}
+	s := testServer(t, func(c *resend.Client) { c.Domains = fake })
+	inputs := property.NewMap(map[string]property.Value{"name": property.New("example.com")})
+
+	read, err := s.Read(p.ReadRequest{
+		Urn: urn("Domain", "read"), ID: "dom_1",
+		Properties: inputs.Set("status", property.New("verified")), Inputs: inputs,
+	})
+	require.NoError(t, err)
+	for _, key := range []string{"region", "openTracking", "clickTracking", "trackingSubdomain"} {
+		_, ok := read.Inputs.GetOk(key)
+		assert.False(t, ok, "%s should not be populated from remote defaults", key)
+		_, ok = read.Properties.GetOk(key)
+		assert.False(t, ok, "%s should not be populated into state", key)
+	}
+}
+
+func mustMarshalJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	require.NoError(t, err)
+	return b
 }
 
 func TestDomainVerificationWaits(t *testing.T) {

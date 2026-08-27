@@ -132,7 +132,11 @@ func (*Domain) Diff(
 		update("clickTracking")
 	}
 	if !ptrEq(old.TrackingSubdomain, new.TrackingSubdomain) {
-		update("trackingSubdomain")
+		if old.TrackingSubdomain != nil && new.TrackingSubdomain == nil {
+			replace("trackingSubdomain")
+		} else {
+			update("trackingSubdomain")
+		}
 	}
 	if !ptrEq(old.Tls, new.Tls) {
 		update("tls")
@@ -148,16 +152,27 @@ func (*Domain) Update(
 	if req.DryRun {
 		return infer.UpdateResponse[DomainState]{Output: state}, nil
 	}
+	if req.State.TrackingSubdomain != nil && req.Inputs.TrackingSubdomain == nil {
+		return infer.UpdateResponse[DomainState]{}, fmt.Errorf("updating domain %q: clearing trackingSubdomain requires replacement", req.ID)
+	}
 	client := getClient(ctx)
 	upd := &resend.UpdateDomainRequest{
-		Tls:               deref(req.Inputs.Tls),
 		TrackingSubdomain: deref(req.Inputs.TrackingSubdomain),
+	}
+	if req.Inputs.Tls != nil {
+		upd.Tls = *req.Inputs.Tls
+	} else if req.State.Tls != nil {
+		upd.Tls = resend.Opportunistic
 	}
 	if req.Inputs.OpenTracking != nil {
 		upd.SetOpenTracking(*req.Inputs.OpenTracking)
+	} else if req.State.OpenTracking != nil {
+		upd.SetOpenTracking(false)
 	}
 	if req.Inputs.ClickTracking != nil {
 		upd.SetClickTracking(*req.Inputs.ClickTracking)
+	} else if req.State.ClickTracking != nil {
+		upd.SetClickTracking(false)
 	}
 	if _, err := client.Domains.UpdateWithContext(ctx, req.ID, upd); err != nil {
 		return infer.UpdateResponse[DomainState]{}, fmt.Errorf("updating domain %q: %w", req.ID, err)
