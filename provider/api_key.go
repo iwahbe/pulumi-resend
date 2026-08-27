@@ -41,6 +41,14 @@ func (*ApiKey) WireDependencies(f infer.FieldSelector, args *ApiKeyArgs, state *
 	f.OutputField(&state.Token).AlwaysSecret()
 }
 
+func (*ApiKey) Check(ctx context.Context, req infer.CheckRequest) (infer.CheckResponse[ApiKeyArgs], error) {
+	inputs, failures, err := infer.DefaultCheck[ApiKeyArgs](ctx, req.NewInputs)
+	if err != nil || len(failures) > 0 {
+		return infer.CheckResponse[ApiKeyArgs]{Inputs: inputs, Failures: failures}, err
+	}
+	return infer.CheckResponse[ApiKeyArgs]{Inputs: inputs, Failures: validateApiKeyArgs(inputs)}, nil
+}
+
 func (*ApiKey) Create(
 	ctx context.Context, req infer.CreateRequest[ApiKeyArgs],
 ) (infer.CreateResponse[ApiKeyState], error) {

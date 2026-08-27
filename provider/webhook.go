@@ -39,6 +39,14 @@ func (*Webhook) WireDependencies(f infer.FieldSelector, args *WebhookArgs, state
 	f.OutputField(&state.SigningSecret).AlwaysSecret()
 }
 
+func (*Webhook) Check(ctx context.Context, req infer.CheckRequest) (infer.CheckResponse[WebhookArgs], error) {
+	inputs, failures, err := infer.DefaultCheck[WebhookArgs](ctx, req.NewInputs)
+	if err != nil || len(failures) > 0 {
+		return infer.CheckResponse[WebhookArgs]{Inputs: inputs, Failures: failures}, err
+	}
+	return infer.CheckResponse[WebhookArgs]{Inputs: inputs, Failures: validateWebhookArgs(inputs)}, nil
+}
+
 func (*Webhook) Create(
 	ctx context.Context, req infer.CreateRequest[WebhookArgs],
 ) (infer.CreateResponse[WebhookState], error) {

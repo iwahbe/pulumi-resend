@@ -66,6 +66,14 @@ func (d *DomainState) Annotate(a infer.Annotator) {
 	a.Describe(&d.Records, "The DNS records to create for this domain.")
 }
 
+func (*Domain) Check(ctx context.Context, req infer.CheckRequest) (infer.CheckResponse[DomainArgs], error) {
+	inputs, failures, err := infer.DefaultCheck[DomainArgs](ctx, req.NewInputs)
+	if err != nil || len(failures) > 0 {
+		return infer.CheckResponse[DomainArgs]{Inputs: inputs, Failures: failures}, err
+	}
+	return infer.CheckResponse[DomainArgs]{Inputs: inputs, Failures: validateDomainArgs(inputs)}, nil
+}
+
 func (*Domain) Create(
 	ctx context.Context, req infer.CreateRequest[DomainArgs],
 ) (infer.CreateResponse[DomainState], error) {
@@ -94,7 +102,7 @@ func (*Domain) Create(
 	// The create API does not accept tls; it can only be set via update.
 	if req.Inputs.Tls != nil {
 		if _, err := client.Domains.UpdateWithContext(ctx, resp.Id, &resend.UpdateDomainRequest{
-			Tls: *req.Inputs.Tls,
+			Tls: resend.TlsOption(*req.Inputs.Tls),
 		}); err != nil {
 			return infer.CreateResponse[DomainState]{ID: resp.Id, Output: state},
 				infer.ResourceInitFailedError{Reasons: []string{fmt.Sprintf("setting tls: %s", err)}}
@@ -160,7 +168,7 @@ func (*Domain) Update(
 		TrackingSubdomain: deref(req.Inputs.TrackingSubdomain),
 	}
 	if req.Inputs.Tls != nil {
-		upd.Tls = *req.Inputs.Tls
+		upd.Tls = resend.TlsOption(*req.Inputs.Tls)
 	} else if req.State.Tls != nil {
 		upd.Tls = resend.Opportunistic
 	}
@@ -228,8 +236,8 @@ func capabilitiesToAPI(c *DomainCapabilities) *resend.DomainCapabilities {
 		return nil
 	}
 	return &resend.DomainCapabilities{
-		Sending:   deref(c.Sending),
-		Receiving: deref(c.Receiving),
+		Sending:   resend.DomainCapabilityStatus(deref(c.Sending)),
+		Receiving: resend.DomainCapabilityStatus(deref(c.Receiving)),
 	}
 }
 
