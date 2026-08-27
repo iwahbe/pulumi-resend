@@ -353,6 +353,38 @@ func (f *fakeApiKeys) RemoveWithContext(ctx context.Context, id string) (bool, e
 	return true, nil
 }
 
+func TestApiKeyImportHasEmptySecretToken(t *testing.T) {
+	fake := &fakeApiKeys{keys: map[string]*resend.ApiKey{
+		"key_1": {Id: "key_1", Name: "imported"},
+	}}
+	s := testServer(t, func(c *resend.Client) { c.ApiKeys = fake })
+
+	read, err := s.Read(p.ReadRequest{Urn: urn("ApiKey", "imported"), ID: "key_1"})
+	require.NoError(t, err)
+	assert.Equal(t, "key_1", read.ID)
+	assert.Equal(t, property.New("imported"), read.Inputs.Get("name"))
+	assert.Equal(t, property.New("").WithSecret(true), read.Properties.Get("token"))
+}
+
+func TestApiKeyReadPreservesExistingSecretToken(t *testing.T) {
+	fake := &fakeApiKeys{keys: map[string]*resend.ApiKey{
+		"key_1": {Id: "key_1", Name: "renamed-in-resend"},
+	}}
+	s := testServer(t, func(c *resend.Client) { c.ApiKeys = fake })
+
+	read, err := s.Read(p.ReadRequest{
+		Urn: urn("ApiKey", "refresh"), ID: "key_1",
+		Properties: property.NewMap(map[string]property.Value{
+			"name":  property.New("old"),
+			"token": property.New("re_existing").WithSecret(true),
+		}),
+		Inputs: property.NewMap(map[string]property.Value{"name": property.New("old")}),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, property.New("renamed-in-resend"), read.Properties.Get("name"))
+	assert.Equal(t, property.New("re_existing").WithSecret(true), read.Properties.Get("token"))
+}
+
 func TestApiKeyLifecycle(t *testing.T) {
 	fake := &fakeApiKeys{keys: map[string]*resend.ApiKey{}}
 	s := testServer(t, func(c *resend.Client) { c.ApiKeys = fake })
@@ -364,12 +396,10 @@ func TestApiKeyLifecycle(t *testing.T) {
 	created, err := s.Create(p.CreateRequest{Urn: urn("ApiKey", "test"), Properties: inputs})
 	require.NoError(t, err)
 	assert.Equal(t, "key_1", created.ID)
-	// Secretness of `token` is carried by the schema (asserted in TestSchema), not
-	// by markers on the raw gRPC response.
 	assert.Equal(t, property.NewMap(map[string]property.Value{
 		"name":       property.New("ci"),
 		"permission": property.New("sending_access"),
-		"token":      property.New("re_secret_token"),
+		"token":      property.New("re_secret_token").WithSecret(true),
 	}), created.Properties)
 
 	diff, err := s.Diff(p.DiffRequest{
@@ -397,7 +427,7 @@ func TestApiKeyLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "ci-renamed", fake.keys["key_1"].Name)
 	// The token survives updates even though the API never returns it again.
-	assert.Equal(t, property.New("re_secret_token"), updated.Properties.Get("token"))
+	assert.Equal(t, property.New("re_secret_token").WithSecret(true), updated.Properties.Get("token"))
 
 	read, err := s.Read(p.ReadRequest{
 		Urn: urn("ApiKey", "test"), ID: created.ID,
@@ -409,6 +439,7 @@ func TestApiKeyLifecycle(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "key_1", read.ID)
+	assert.Equal(t, property.New("re_secret_token").WithSecret(true), read.Properties.Get("token"))
 
 	require.NoError(t, s.Delete(p.DeleteRequest{Urn: urn("ApiKey", "test"), ID: created.ID, Properties: updated.Properties}))
 	assert.Empty(t, fake.keys)
@@ -455,6 +486,47 @@ func (f *fakeWebhooks) RemoveWithContext(ctx context.Context, id string) (*resen
 	return &resend.DeleteWebhookResponse{}, nil
 }
 
+func TestWebhookImportHasEmptySecretWhenResendOmitsSigningSecret(t *testing.T) {
+	fake := &fakeWebhooks{hooks: map[string]*resend.Webhook{
+		"wh_1": {
+			Id: "wh_1", Endpoint: "https://example.com/imported", Events: []string{"email.sent"},
+			Status: "enabled", CreatedAt: "2026-08-25T00:00:00.000Z",
+		},
+	}}
+	s := testServer(t, func(c *resend.Client) { c.Webhooks = fake })
+
+	read, err := s.Read(p.ReadRequest{Urn: urn("Webhook", "imported"), ID: "wh_1"})
+	require.NoError(t, err)
+	assert.Equal(t, "wh_1", read.ID)
+	assert.Equal(t, property.New("https://example.com/imported"), read.Inputs.Get("endpoint"))
+	assert.Equal(t, property.New("").WithSecret(true), read.Properties.Get("signingSecret"))
+}
+
+func TestWebhookReadPreservesExistingSecretWhenResendOmitsSigningSecret(t *testing.T) {
+	fake := &fakeWebhooks{hooks: map[string]*resend.Webhook{
+		"wh_1": {
+			Id: "wh_1", Endpoint: "https://example.com/hook", Events: []string{"email.sent"},
+			Status: "enabled", CreatedAt: "2026-08-25T00:00:00.000Z",
+		},
+	}}
+	s := testServer(t, func(c *resend.Client) { c.Webhooks = fake })
+
+	read, err := s.Read(p.ReadRequest{
+		Urn: urn("Webhook", "refresh"), ID: "wh_1",
+		Properties: property.NewMap(map[string]property.Value{
+			"endpoint":      property.New("https://example.com/hook"),
+			"events":        property.New([]property.Value{property.New("email.sent")}),
+			"signingSecret": property.New("whsec_existing").WithSecret(true),
+		}),
+		Inputs: property.NewMap(map[string]property.Value{
+			"endpoint": property.New("https://example.com/hook"),
+			"events":   property.New([]property.Value{property.New("email.sent")}),
+		}),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, property.New("whsec_existing").WithSecret(true), read.Properties.Get("signingSecret"))
+}
+
 func TestWebhookLifecycle(t *testing.T) {
 	fake := &fakeWebhooks{hooks: map[string]*resend.Webhook{}}
 	s := testServer(t, func(c *resend.Client) { c.Webhooks = fake })
@@ -470,7 +542,7 @@ func TestWebhookLifecycle(t *testing.T) {
 	assert.Equal(t, property.NewMap(map[string]property.Value{
 		"endpoint":      property.New("https://example.com/hook"),
 		"events":        property.New([]property.Value{property.New("email.sent")}),
-		"signingSecret": property.New("whsec_123"),
+		"signingSecret": property.New("whsec_123").WithSecret(true),
 		"status":        property.New("enabled"),
 		"createdAt":     property.New("2026-08-25T00:00:00.000Z"),
 	}), created.Properties)
@@ -486,7 +558,18 @@ func TestWebhookLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "https://example.com/hook2", fake.hooks["wh_1"].Endpoint)
 	assert.Equal(t, []string{"email.sent", "email.bounced"}, fake.hooks["wh_1"].Events)
-	assert.Equal(t, property.New("whsec_123"), updated.Properties.Get("signingSecret"))
+	assert.Equal(t, property.New("whsec_123").WithSecret(true), updated.Properties.Get("signingSecret"))
+
+	read, err := s.Read(p.ReadRequest{
+		Urn: urn("Webhook", "test"), ID: created.ID,
+		Properties: updated.Properties,
+		Inputs: property.NewMap(map[string]property.Value{
+			"endpoint": property.New("https://example.com/hook2"),
+			"events":   property.New([]property.Value{property.New("email.sent"), property.New("email.bounced")}),
+		}),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, property.New("whsec_123").WithSecret(true), read.Properties.Get("signingSecret"))
 
 	require.NoError(t, s.Delete(p.DeleteRequest{Urn: urn("Webhook", "test"), ID: created.ID, Properties: updated.Properties}))
 	assert.Empty(t, fake.hooks)

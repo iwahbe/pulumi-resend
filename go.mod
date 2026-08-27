@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/pulumi/pulumi-go-provider v1.6.0
+	github.com/pulumi/pulumi-go-provider v1.6.1-0.20260827122834-be1d7bb004b0
 	github.com/pulumi/pulumi/sdk/v3 v3.259.0
 	github.com/resend/resend-go/v4 v4.0.0
 	github.com/stretchr/testify v1.11.1
@@ -101,7 +101,7 @@ require (
 	go.opentelemetry.io/collector/pdata v1.65.0 // indirect
 	go.opentelemetry.io/contrib/bridges/otelslog v0.20.0 // indirect
 	go.opentelemetry.io/otel v1.45.0 // indirect
-	go.opentelemetry.io/otel/bridge/opentracing v1.33.0 // indirect
+	go.opentelemetry.io/otel/bridge/opentracing v1.45.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.21.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.45.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.45.0 // indirect
