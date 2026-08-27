@@ -9,6 +9,7 @@ import (
 
 	"github.com/blang/semver"
 	p "github.com/pulumi/pulumi-go-provider"
+	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-go-provider/integration"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
@@ -795,6 +796,20 @@ func TestTypedNotFoundRemovesResourcesAndDeletesIdempotently(t *testing.T) {
 			"signingSecret": property.New("").WithSecret(true), "status": property.New("enabled"), "createdAt": property.New("now"),
 		}),
 	}))
+}
+
+// Documents why the provider still layers explicit enum validation on top of
+// infer.DefaultCheck: Values() contributes schema enum types, but raw strings
+// still deserialize into enum aliases without Check failures.
+func TestInferDefaultCheckDoesNotRejectInvalidRawEnumValues(t *testing.T) {
+	inputs, failures, err := infer.DefaultCheck[DomainArgs](t.Context(), property.NewMap(map[string]property.Value{
+		"name":   property.New("example.com"),
+		"region": property.New("mars-1"),
+	}))
+	require.NoError(t, err)
+	assert.Empty(t, failures)
+	require.NotNil(t, inputs.Region)
+	assert.Equal(t, DomainRegion("mars-1"), *inputs.Region)
 }
 
 func TestInputValidationRejectsFiniteInvalidValues(t *testing.T) {

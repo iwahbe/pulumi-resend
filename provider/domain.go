@@ -13,18 +13,18 @@ import (
 type Domain struct{}
 
 type DomainCapabilities struct {
-	Sending   *string `pulumi:"sending,optional"`
-	Receiving *string `pulumi:"receiving,optional"`
+	Sending   *DomainCapabilityStatus `pulumi:"sending,optional"`
+	Receiving *DomainCapabilityStatus `pulumi:"receiving,optional"`
 }
 
 type DomainArgs struct {
 	Name              string              `pulumi:"name"`
-	Region            *string             `pulumi:"region,optional"`
+	Region            *DomainRegion       `pulumi:"region,optional"`
 	CustomReturnPath  *string             `pulumi:"customReturnPath,optional"`
 	OpenTracking      *bool               `pulumi:"openTracking,optional"`
 	ClickTracking     *bool               `pulumi:"clickTracking,optional"`
 	TrackingSubdomain *string             `pulumi:"trackingSubdomain,optional"`
-	Tls               *string             `pulumi:"tls,optional"`
+	Tls               *DomainTLS          `pulumi:"tls,optional"`
 	Capabilities      *DomainCapabilities `pulumi:"capabilities,optional"`
 }
 
@@ -83,7 +83,7 @@ func (*Domain) Create(
 	client := getClient(ctx)
 	resp, err := client.Domains.CreateWithContext(ctx, &resend.CreateDomainRequest{
 		Name:              req.Inputs.Name,
-		Region:            deref(req.Inputs.Region),
+		Region:            ptrStringValue(req.Inputs.Region),
 		CustomReturnPath:  deref(req.Inputs.CustomReturnPath),
 		TrackingSubdomain: deref(req.Inputs.TrackingSubdomain),
 		OpenTracking:      req.Inputs.OpenTracking,
@@ -207,7 +207,7 @@ func (*Domain) Read(
 	}
 	inputs := req.Inputs
 	inputs.Name = remote.Name
-	keepFresh(&inputs.Region, remote.Region)
+	keepFresh(&inputs.Region, DomainRegion(remote.Region))
 	keepFresh(&inputs.OpenTracking, remote.OpenTracking)
 	keepFresh(&inputs.ClickTracking, remote.ClickTracking)
 	keepFresh(&inputs.TrackingSubdomain, remote.TrackingSubdomain)
@@ -236,18 +236,18 @@ func capabilitiesToAPI(c *DomainCapabilities) *resend.DomainCapabilities {
 		return nil
 	}
 	return &resend.DomainCapabilities{
-		Sending:   resend.DomainCapabilityStatus(deref(c.Sending)),
-		Receiving: resend.DomainCapabilityStatus(deref(c.Receiving)),
+		Sending:   resend.DomainCapabilityStatus(ptrStringValue(c.Sending)),
+		Receiving: resend.DomainCapabilityStatus(ptrStringValue(c.Receiving)),
 	}
 }
 
 func capabilitiesFromAPI(c *resend.DomainCapabilities) *DomainCapabilities {
 	out := &DomainCapabilities{}
 	if c.Sending != "" {
-		out.Sending = &c.Sending
+		out.Sending = ptrString[DomainCapabilityStatus](c.Sending)
 	}
 	if c.Receiving != "" {
-		out.Receiving = &c.Receiving
+		out.Receiving = ptrString[DomainCapabilityStatus](c.Receiving)
 	}
 	return out
 }

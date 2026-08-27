@@ -12,9 +12,9 @@ import (
 type ApiKey struct{}
 
 type ApiKeyArgs struct {
-	Name       string  `pulumi:"name"`
-	Permission *string `pulumi:"permission,optional"`
-	DomainId   *string `pulumi:"domainId,optional"`
+	Name       string            `pulumi:"name"`
+	Permission *ApiKeyPermission `pulumi:"permission,optional"`
+	DomainId   *string           `pulumi:"domainId,optional"`
 }
 
 type ApiKeyState struct {
@@ -57,7 +57,7 @@ func (*ApiKey) Create(
 	}
 	resp, err := getClient(ctx).ApiKeys.CreateWithContext(ctx, &resend.CreateApiKeyRequest{
 		Name:       req.Inputs.Name,
-		Permission: deref(req.Inputs.Permission),
+		Permission: ptrStringValue(req.Inputs.Permission),
 		DomainId:   deref(req.Inputs.DomainId),
 	})
 	if err != nil {
