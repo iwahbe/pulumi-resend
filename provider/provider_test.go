@@ -47,6 +47,7 @@ type fakeDomains struct {
 	updates           []resend.UpdateDomainRequest
 	getsUntilVerified int
 	verified          bool
+	statusAfterVerify string
 }
 
 func (f *fakeDomains) CreateWithContext(ctx context.Context, params *resend.CreateDomainRequest) (resend.CreateDomainResponse, error) {
@@ -82,6 +83,8 @@ func (f *fakeDomains) GetWithContext(ctx context.Context, id string) (resend.Dom
 		if f.getsUntilVerified > 0 {
 			f.getsUntilVerified--
 			d.Status = resend.DomainStatusPending
+		} else if f.statusAfterVerify != "" {
+			d.Status = f.statusAfterVerify
 		} else {
 			d.Status = resend.DomainStatusVerified
 		}
@@ -264,6 +267,41 @@ func TestDomainTrackingSubdomainSetToUnsetRequiresReplacement(t *testing.T) {
 	assert.ErrorContains(t, err, "clearing trackingSubdomain requires replacement")
 }
 
+func TestDomainImportReadPopulatesRequiredInputsAndOutputs(t *testing.T) {
+	fake := &fakeDomains{domains: map[string]*resend.Domain{
+		"dom_1": {
+			Id: "dom_1", Name: "example.com", Status: resend.DomainStatusVerified,
+			Region: "eu-west-1", OpenTracking: true, ClickTracking: true, TrackingSubdomain: "links",
+			CreatedAt: "2026-08-25T00:00:00.000Z",
+			Records: []resend.Record{{
+				Record: resend.RecordTypeSPF, Name: "send", Type: "MX", Ttl: "Auto",
+				Status: resend.DomainRecordStatusVerified, Value: "feedback-smtp.eu-west-1.amazonses.com", Priority: "10",
+			}},
+		},
+	}}
+	s := testServer(t, func(c *resend.Client) { c.Domains = fake })
+
+	read, err := s.Read(p.ReadRequest{Urn: urn("Domain", "imported"), ID: "dom_1"})
+	require.NoError(t, err)
+	assert.Equal(t, "dom_1", read.ID)
+	assert.Equal(t, property.New("example.com"), read.Inputs.Get("name"))
+	for _, key := range []string{"region", "openTracking", "clickTracking", "trackingSubdomain"} {
+		_, ok := read.Inputs.GetOk(key)
+		assert.False(t, ok, "%s should stay unset during import-like reads", key)
+	}
+	assert.Equal(t, property.New("verified"), read.Properties.Get("status"))
+	assert.Equal(t, property.New("2026-08-25T00:00:00.000Z"), read.Properties.Get("createdAt"))
+	assert.Equal(t, property.New([]property.Value{property.New(map[string]property.Value{
+		"record":   property.New("SPF"),
+		"name":     property.New("send"),
+		"type":     property.New("MX"),
+		"ttl":      property.New("Auto"),
+		"status":   property.New("verified"),
+		"value":    property.New("feedback-smtp.eu-west-1.amazonses.com"),
+		"priority": property.New("10"),
+	})}), read.Properties.Get("records"))
+}
+
 func TestDomainReadPreservesUnsetOptionalInputs(t *testing.T) {
 	fake := &fakeDomains{domains: map[string]*resend.Domain{
 		"dom_1": {
@@ -294,6 +332,77 @@ func mustMarshalJSON(t *testing.T, v any) []byte {
 	return b
 }
 
+func TestDomainVerificationFailsOnTerminalFailureStatus(t *testing.T) {
+	fake := &fakeDomains{
+		domains:           map[string]*resend.Domain{"dom_1": {Id: "dom_1", Name: "example.com", Status: resend.DomainStatusNotStarted}},
+		statusAfterVerify: resend.DomainStatusFailed,
+	}
+	s := testServer(t, func(c *resend.Client) { c.Domains = fake })
+
+	_, err := s.Create(p.CreateRequest{
+		Urn: urn("DomainVerification", "failed"),
+		Properties: property.NewMap(map[string]property.Value{
+			"domainId": property.New("dom_1"),
+		}),
+	})
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "failed with status \"failed\"")
+}
+
+func TestDomainVerificationTimesOutWithoutSleeping(t *testing.T) {
+	fake := &fakeDomains{
+		domains:           map[string]*resend.Domain{"dom_1": {Id: "dom_1", Name: "example.com", Status: resend.DomainStatusNotStarted}},
+		getsUntilVerified: 1,
+	}
+	s := testServer(t, func(c *resend.Client) { c.Domains = fake })
+
+	_, err := s.Create(p.CreateRequest{
+		Urn: urn("DomainVerification", "timeout"),
+		Properties: property.NewMap(map[string]property.Value{
+			"domainId":       property.New("dom_1"),
+			"timeoutSeconds": property.New(0.0),
+		}),
+	})
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "timed out after 0s")
+	assert.ErrorContains(t, err, "status \"pending\"")
+}
+
+func TestDomainVerificationHonorsCancellation(t *testing.T) {
+	old := verifyPollInterval
+	verifyPollInterval = time.Hour
+	t.Cleanup(func() { verifyPollInterval = old })
+
+	ctx, cancel := context.WithCancel(t.Context())
+	fake := &fakeDomains{
+		domains:           map[string]*resend.Domain{"dom_1": {Id: "dom_1", Name: "example.com", Status: resend.DomainStatusNotStarted}},
+		getsUntilVerified: 1,
+	}
+	oldClient := newClient
+	newClient = func(key string) *resend.Client {
+		c := resend.NewClient(key)
+		c.Domains = fake
+		return c
+	}
+	t.Cleanup(func() { newClient = oldClient })
+	prov, err := New()
+	require.NoError(t, err)
+	s, err := integration.NewServer(ctx, Name, semver.MustParse("0.0.1"), integration.WithProvider(prov))
+	require.NoError(t, err)
+	require.NoError(t, s.Configure(p.ConfigureRequest{
+		Args: property.NewMap(map[string]property.Value{"apiKey": property.New("re_test")}),
+	}))
+	cancel()
+
+	_, err = s.Create(p.CreateRequest{
+		Urn: urn("DomainVerification", "cancelled"),
+		Properties: property.NewMap(map[string]property.Value{
+			"domainId": property.New("dom_1"),
+		}),
+	})
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 func TestDomainVerificationWaits(t *testing.T) {
 	old := verifyPollInterval
 	verifyPollInterval = time.Millisecond
@@ -322,7 +431,9 @@ func TestDomainVerificationWaits(t *testing.T) {
 
 type fakeApiKeys struct {
 	resend.ApiKeysSvc
-	keys map[string]*resend.ApiKey
+	keys       map[string]*resend.ApiKey
+	pages      [][]resend.ApiKey
+	listAfters []string
 }
 
 func (f *fakeApiKeys) CreateWithContext(ctx context.Context, params *resend.CreateApiKeyRequest) (resend.CreateApiKeyResponse, error) {
@@ -332,6 +443,24 @@ func (f *fakeApiKeys) CreateWithContext(ctx context.Context, params *resend.Crea
 }
 
 func (f *fakeApiKeys) ListWithOptions(ctx context.Context, options *resend.ListOptions) (resend.ListApiKeysResponse, error) {
+	after := deref(options.After)
+	f.listAfters = append(f.listAfters, after)
+	if f.pages != nil {
+		page := 0
+		if after != "" {
+			page = len(f.pages)
+			for i, keys := range f.pages {
+				if len(keys) > 0 && keys[len(keys)-1].Id == after {
+					page = i + 1
+					break
+				}
+			}
+		}
+		if page >= len(f.pages) {
+			return resend.ListApiKeysResponse{Object: "list"}, nil
+		}
+		return resend.ListApiKeysResponse{Object: "list", Data: f.pages[page], HasMore: page < len(f.pages)-1}, nil
+	}
 	resp := resend.ListApiKeysResponse{Object: "list"}
 	for _, k := range f.keys {
 		resp.Data = append(resp.Data, *k)
@@ -364,6 +493,20 @@ func TestApiKeyImportHasEmptySecretToken(t *testing.T) {
 	assert.Equal(t, "key_1", read.ID)
 	assert.Equal(t, property.New("imported"), read.Inputs.Get("name"))
 	assert.Equal(t, property.New("").WithSecret(true), read.Properties.Get("token"))
+}
+
+func TestApiKeyReadFindsKeyAcrossPaginatedList(t *testing.T) {
+	fake := &fakeApiKeys{pages: [][]resend.ApiKey{
+		{{Id: "key_1", Name: "first-page"}},
+		{{Id: "key_2", Name: "second-page"}},
+	}}
+	s := testServer(t, func(c *resend.Client) { c.ApiKeys = fake })
+
+	read, err := s.Read(p.ReadRequest{Urn: urn("ApiKey", "paged"), ID: "key_2"})
+	require.NoError(t, err)
+	assert.Equal(t, "key_2", read.ID)
+	assert.Equal(t, property.New("second-page"), read.Inputs.Get("name"))
+	assert.Equal(t, []string{"", "key_1"}, fake.listAfters)
 }
 
 func TestApiKeyReadPreservesExistingSecretToken(t *testing.T) {
@@ -573,6 +716,26 @@ func TestWebhookLifecycle(t *testing.T) {
 
 	require.NoError(t, s.Delete(p.DeleteRequest{Urn: urn("Webhook", "test"), ID: created.ID, Properties: updated.Properties}))
 	assert.Empty(t, fake.hooks)
+}
+
+func TestReadRemovesMissingResources(t *testing.T) {
+	fakeDomains := &fakeDomains{domains: map[string]*resend.Domain{}}
+	domainServer := testServer(t, func(c *resend.Client) { c.Domains = fakeDomains })
+	for typ, id := range map[string]string{"Domain": "dom_missing", "DomainVerification": "dom_missing"} {
+		read, err := domainServer.Read(p.ReadRequest{Urn: urn(typ, "missing"), ID: id})
+		require.NoError(t, err)
+		assert.Equal(t, "", read.ID, "%s should be removed from state when Resend reports not found", typ)
+	}
+
+	apiKeyServer := testServer(t, func(c *resend.Client) { c.ApiKeys = &fakeApiKeys{keys: map[string]*resend.ApiKey{}} })
+	read, err := apiKeyServer.Read(p.ReadRequest{Urn: urn("ApiKey", "missing"), ID: "key_missing"})
+	require.NoError(t, err)
+	assert.Equal(t, "", read.ID, "ApiKey should be removed from state when omitted from the API listing")
+
+	webhookServer := testServer(t, func(c *resend.Client) { c.Webhooks = &fakeWebhooks{hooks: map[string]*resend.Webhook{}} })
+	read, err = webhookServer.Read(p.ReadRequest{Urn: urn("Webhook", "missing"), ID: "wh_missing"})
+	require.NoError(t, err)
+	assert.Equal(t, "", read.ID, "Webhook should be removed from state when Resend reports not found")
 }
 
 func TestConfigureRequiresApiKey(t *testing.T) {
