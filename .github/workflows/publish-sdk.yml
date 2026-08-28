@@ -1,0 +1,104 @@
+name: publish-sdk
+
+on:
+  push:
+    branches: [main]
+
+# This workflow writes only generated provider artifacts to the sdk-releases
+# branch. The repository source remains on main; sdk-releases contains
+# registry/schema.json and sdk/go for consumers that need generated outputs.
+permissions:
+  contents: write
+
+# Main pushes are queued so two generations cannot overwrite or corrupt the
+# generated branch at the same time.
+concurrency:
+  group: publish-sdk-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+
+      - name: Install Pulumi CLI
+        uses: pulumi/actions@8e5e406f4007fca908480587cb9893c07090f58d # v7
+        with:
+          pulumi-version: 3.259.0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Test and build provider
+        env:
+          PROVIDER_VERSION: 0.0.0-main+${{ github.sha }}
+        run: |
+          set -euo pipefail
+          go test ./...
+          go build \
+            -ldflags "-X github.com/iwahbe/pulumi-resend/provider.Version=${PROVIDER_VERSION}" \
+            -o "${RUNNER_TEMP}/pulumi-resource-resend" \
+            .
+
+      - name: Generate schema and Go SDK
+        run: |
+          set -euo pipefail
+          generated="${RUNNER_TEMP}/generated"
+          rm -rf "${generated}"
+          mkdir -p "${generated}/registry"
+
+          pulumi package get-schema "${RUNNER_TEMP}/pulumi-resource-resend" > "${generated}/registry/schema.json"
+          pulumi package gen-sdk --language go --out "${generated}/sdk" "${RUNNER_TEMP}/pulumi-resource-resend"
+
+          pulumi_sdk_version="$(go list -m -f '{{ .Version }}' github.com/pulumi/pulumi/sdk/v3)"
+          go_version="$(go list -m -f '{{ .GoVersion }}')"
+          printf 'module github.com/iwahbe/pulumi-resend/sdk/go\n\ngo %s\n\nrequire github.com/pulumi/pulumi/sdk/v3 %s\n' \
+            "${go_version}" "${pulumi_sdk_version}" > "${generated}/sdk/go/go.mod"
+          (cd "${generated}/sdk/go" && go mod tidy && go test ./...)
+
+          cat > "${generated}/README.md" <<'EOF'
+          # Generated Pulumi Resend SDK artifacts
+
+          This branch is generated from pushes to the repository's main branch.
+          Do not edit it by hand: `.github/workflows/publish-sdk.yml` rebuilds
+          `pulumi-resource-resend`, regenerates `registry/schema.json` and
+          `sdk/go`, then replaces this branch only when generated content changes.
+          EOF
+
+      - name: Publish generated branch
+        run: |
+          set -euo pipefail
+          generated="${RUNNER_TEMP}/generated"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --heads origin sdk-releases >/dev/null 2>&1; then
+            git fetch --depth 1 origin sdk-releases
+            git switch --detach FETCH_HEAD
+            git switch -C sdk-releases
+          else
+            git switch --orphan sdk-releases
+          fi
+
+          # sdk-releases is generated-only. Remove whatever is currently tracked
+          # and replace it with this run's deterministic outputs.
+          git rm -r --ignore-unmatch .
+          cp -a "${generated}/." .
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "sdk-releases already matches generated output."
+            exit 0
+          fi
+
+          git commit -m "Update generated SDK artifacts for ${GITHUB_SHA}"
+          git push origin HEAD:sdk-releases
