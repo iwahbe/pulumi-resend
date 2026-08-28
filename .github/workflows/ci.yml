@@ -13,8 +13,35 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
+      - uses: pulumi/setup-pulumi@b374ceb6168550de27c6eba92e01c1a774040e11 # v2.0.0
+        with:
+          pulumi-version: 3.259.0
       - run: go build ./...
       - run: go test ./...
       - run: go vet ./...
       - run: go install golang.org/x/vuln/cmd/govulncheck@latest
-      - run: govulncheck ./...
+      - run: $(go env GOPATH)/bin/govulncheck ./...
+      - name: Install schema-tools
+        env:
+          SCHEMA_TOOLS_VERSION: v0.8.1
+          SCHEMA_TOOLS_SHA256: 8bd60e19dc61f8566738e9ad43e1c18dd0e8401d8de4a39258ac8fc38097be7e
+        run: |
+          set -euo pipefail
+          archive="schema-tools-${SCHEMA_TOOLS_VERSION}-linux-amd64.tar.gz"
+          curl -fsSLO "https://github.com/pulumi/schema-tools/releases/download/${SCHEMA_TOOLS_VERSION}/${archive}"
+          echo "${SCHEMA_TOOLS_SHA256}  ${archive}" | sha256sum --check --strict
+          tar -xzf "${archive}"
+          sudo install -m 0755 schema-tools /usr/local/bin/schema-tools
+          schema-tools version
+      - name: Check generated schema compatibility
+        run: |
+          set -euo pipefail
+          mkdir -p bin
+          go build -o bin/pulumi-resource-resend .
+          pulumi package get-schema ./bin/pulumi-resource-resend > current-schema.json
+          schema-tools compare \
+            --provider resend \
+            --old-path provider/testdata/schema.json \
+            --new-path current-schema.json \
+            --json --summary | tee schema-compatibility.json
+          jq -e '.summary | length == 0' schema-compatibility.json
