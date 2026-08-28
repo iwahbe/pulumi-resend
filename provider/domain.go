@@ -282,12 +282,10 @@ func capabilitiesToAPI(c *DomainCapabilities) *resend.DomainCapabilities {
 func capabilitiesFromAPI(c *resend.DomainCapabilities) *DomainCapabilities {
 	out := &DomainCapabilities{}
 	if c.Sending != "" {
-		sending := DomainCapabilityStatus(c.Sending)
-		out.Sending = &sending
+		out.Sending = new(DomainCapabilityStatus(c.Sending))
 	}
 	if c.Receiving != "" {
-		receiving := DomainCapabilityStatus(c.Receiving)
-		out.Receiving = &receiving
+		out.Receiving = new(DomainCapabilityStatus(c.Receiving))
 	}
 	return out
 }
