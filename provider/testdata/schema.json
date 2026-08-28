@@ -1,0 +1,433 @@
+{
+  "config": {
+    "variables": {
+      "apiKey": {
+        "description": "The Resend API key. Defaults to the value of the `RESEND_API_KEY` environment variable.",
+        "secret": true,
+        "type": "string"
+      }
+    }
+  },
+  "description": "A Pulumi provider for managing Resend email infrastructure.",
+  "displayName": "Resend",
+  "language": {
+    "csharp": {
+      "respectSchemaVersion": true
+    },
+    "go": {
+      "generateResourceContainerTypes": true,
+      "importBasePath": "github.com/iwahbe/pulumi-resend/sdk/go/resend",
+      "respectSchemaVersion": true
+    },
+    "nodejs": {
+      "respectSchemaVersion": true
+    },
+    "python": {
+      "pyproject": {
+        "enabled": true
+      },
+      "respectSchemaVersion": true
+    }
+  },
+  "license": "Apache-2.0",
+  "name": "resend",
+  "namespace": "iwahbe",
+  "pluginDownloadURL": "github://api.github.com/iwahbe/pulumi-resend",
+  "provider": {
+    "inputProperties": {
+      "apiKey": {
+        "description": "The Resend API key. Defaults to the value of the `RESEND_API_KEY` environment variable.",
+        "secret": true,
+        "type": "string"
+      }
+    },
+    "properties": {
+      "apiKey": {
+        "description": "The Resend API key. Defaults to the value of the `RESEND_API_KEY` environment variable.",
+        "secret": true,
+        "type": "string"
+      }
+    }
+  },
+  "repository": "https://github.com/iwahbe/pulumi-resend",
+  "resources": {
+    "resend:index:ApiKey": {
+      "description": "A Resend API key. The `token` output is only available from the Resend API at creation time; it cannot be recovered later.",
+      "inputProperties": {
+        "domainId": {
+          "description": "Restrict a `sending_access` key to a single domain.",
+          "type": "string"
+        },
+        "name": {
+          "description": "The API key name. Maximum 50 characters.",
+          "type": "string"
+        },
+        "permission": {
+          "$ref": "#/types/resend:index:ApiKeyPermission",
+          "description": "`full_access` or `sending_access`."
+        }
+      },
+      "properties": {
+        "domainId": {
+          "description": "Restrict a `sending_access` key to a single domain.",
+          "type": "string"
+        },
+        "name": {
+          "description": "The API key name. Maximum 50 characters.",
+          "type": "string"
+        },
+        "permission": {
+          "$ref": "#/types/resend:index:ApiKeyPermission",
+          "description": "`full_access` or `sending_access`."
+        },
+        "token": {
+          "description": "The API key credential. Only returned by Resend at creation time; empty after import.",
+          "secret": true,
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "token"
+      ],
+      "requiredInputs": [
+        "name"
+      ]
+    },
+    "resend:index:Domain": {
+      "description": "A domain registered with Resend for sending (and optionally receiving) email. The `records` output contains the DNS records that must be created before the domain can be verified.",
+      "inputProperties": {
+        "capabilities": {
+          "$ref": "#/types/resend:index:DomainCapabilities",
+          "description": "Enable `sending` and/or `receiving` for this domain."
+        },
+        "clickTracking": {
+          "description": "Track link clicks in HTML emails. Requires a verified tracking subdomain.",
+          "type": "boolean"
+        },
+        "customReturnPath": {
+          "description": "The subdomain used for the Return-Path address. Defaults to `send`.",
+          "type": "string"
+        },
+        "name": {
+          "description": "The domain name, e.g. `example.com`.",
+          "type": "string"
+        },
+        "openTracking": {
+          "description": "Track email open rates. Requires a verified tracking subdomain.",
+          "type": "boolean"
+        },
+        "region": {
+          "$ref": "#/types/resend:index:DomainRegion",
+          "description": "The region emails are sent from: `us-east-1` (default), `eu-west-1`, `sa-east-1`, or `ap-northeast-1`."
+        },
+        "tls": {
+          "$ref": "#/types/resend:index:DomainTLS",
+          "description": "Connection encryption: `opportunistic` (default) or `enforced`."
+        },
+        "trackingSubdomain": {
+          "description": "Custom subdomain used for open/click tracking links.",
+          "type": "string"
+        }
+      },
+      "properties": {
+        "capabilities": {
+          "$ref": "#/types/resend:index:DomainCapabilities",
+          "description": "Enable `sending` and/or `receiving` for this domain."
+        },
+        "clickTracking": {
+          "description": "Track link clicks in HTML emails. Requires a verified tracking subdomain.",
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "customReturnPath": {
+          "description": "The subdomain used for the Return-Path address. Defaults to `send`.",
+          "type": "string"
+        },
+        "name": {
+          "description": "The domain name, e.g. `example.com`.",
+          "type": "string"
+        },
+        "openTracking": {
+          "description": "Track email open rates. Requires a verified tracking subdomain.",
+          "type": "boolean"
+        },
+        "records": {
+          "description": "The DNS records to create for this domain.",
+          "items": {
+            "$ref": "#/types/resend:index:DomainRecord"
+          },
+          "type": "array"
+        },
+        "region": {
+          "$ref": "#/types/resend:index:DomainRegion",
+          "description": "The region emails are sent from: `us-east-1` (default), `eu-west-1`, `sa-east-1`, or `ap-northeast-1`."
+        },
+        "status": {
+          "description": "The verification status of the domain.",
+          "type": "string"
+        },
+        "tls": {
+          "$ref": "#/types/resend:index:DomainTLS",
+          "description": "Connection encryption: `opportunistic` (default) or `enforced`."
+        },
+        "trackingSubdomain": {
+          "description": "Custom subdomain used for open/click tracking links.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "status",
+        "createdAt",
+        "records"
+      ],
+      "requiredInputs": [
+        "name"
+      ]
+    },
+    "resend:index:DomainVerification": {
+      "description": "Triggers verification of a Resend domain and waits until the domain's DNS records have been verified. Create this resource after the domain's DNS records (from the `Domain` resource's `records` output) have been published.",
+      "inputProperties": {
+        "domainId": {
+          "description": "The ID of the domain to verify.",
+          "type": "string"
+        },
+        "timeoutSeconds": {
+          "description": "How long to wait for verification before failing. Defaults to 900 seconds.",
+          "type": "integer"
+        }
+      },
+      "properties": {
+        "domainId": {
+          "description": "The ID of the domain to verify.",
+          "type": "string"
+        },
+        "status": {
+          "description": "The verification status of the domain.",
+          "type": "string"
+        },
+        "timeoutSeconds": {
+          "description": "How long to wait for verification before failing. Defaults to 900 seconds.",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "domainId",
+        "status"
+      ],
+      "requiredInputs": [
+        "domainId"
+      ]
+    },
+    "resend:index:Webhook": {
+      "description": "A Resend webhook that delivers events to an HTTPS endpoint. If Resend omits the `signingSecret` during import or read, the provider returns an empty secret for imports and preserves any existing state value during refreshes.",
+      "inputProperties": {
+        "endpoint": {
+          "description": "The HTTPS URL events are delivered to.",
+          "type": "string"
+        },
+        "events": {
+          "description": "The event types to subscribe to, e.g. `email.sent` or `domain.updated`.",
+          "items": {
+            "$ref": "#/types/resend:index:WebhookEvent"
+          },
+          "type": "array"
+        }
+      },
+      "properties": {
+        "createdAt": {
+          "type": "string"
+        },
+        "endpoint": {
+          "description": "The HTTPS URL events are delivered to.",
+          "type": "string"
+        },
+        "events": {
+          "description": "The event types to subscribe to, e.g. `email.sent` or `domain.updated`.",
+          "items": {
+            "$ref": "#/types/resend:index:WebhookEvent"
+          },
+          "type": "array"
+        },
+        "signingSecret": {
+          "description": "The secret used to verify webhook payload signatures; may be empty after import if Resend does not return it.",
+          "secret": true,
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoint",
+        "events",
+        "signingSecret",
+        "status",
+        "createdAt"
+      ],
+      "requiredInputs": [
+        "endpoint",
+        "events"
+      ]
+    }
+  },
+  "types": {
+    "resend:index:ApiKeyPermission": {
+      "enum": [
+        {
+          "description": "Full access to the Resend API.",
+          "value": "full_access"
+        },
+        {
+          "description": "Permission to send emails.",
+          "value": "sending_access"
+        }
+      ],
+      "type": "string"
+    },
+    "resend:index:DomainCapabilities": {
+      "properties": {
+        "receiving": {
+          "$ref": "#/types/resend:index:DomainCapabilityStatus"
+        },
+        "sending": {
+          "$ref": "#/types/resend:index:DomainCapabilityStatus"
+        }
+      },
+      "type": "object"
+    },
+    "resend:index:DomainCapabilityStatus": {
+      "enum": [
+        {
+          "value": "enabled"
+        },
+        {
+          "value": "disabled"
+        }
+      ],
+      "type": "string"
+    },
+    "resend:index:DomainRecord": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "string"
+        },
+        "record": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "ttl": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "record",
+        "name",
+        "type",
+        "ttl",
+        "status",
+        "value"
+      ],
+      "type": "object"
+    },
+    "resend:index:DomainRegion": {
+      "enum": [
+        {
+          "value": "us-east-1"
+        },
+        {
+          "value": "eu-west-1"
+        },
+        {
+          "value": "sa-east-1"
+        },
+        {
+          "value": "ap-northeast-1"
+        }
+      ],
+      "type": "string"
+    },
+    "resend:index:DomainTLS": {
+      "enum": [
+        {
+          "value": "enforced"
+        },
+        {
+          "value": "opportunistic"
+        }
+      ],
+      "type": "string"
+    },
+    "resend:index:WebhookEvent": {
+      "enum": [
+        {
+          "value": "email.sent"
+        },
+        {
+          "value": "email.delivered"
+        },
+        {
+          "value": "email.delivery_delayed"
+        },
+        {
+          "value": "email.complained"
+        },
+        {
+          "value": "email.bounced"
+        },
+        {
+          "value": "email.opened"
+        },
+        {
+          "value": "email.clicked"
+        },
+        {
+          "value": "email.received"
+        },
+        {
+          "value": "email.failed"
+        },
+        {
+          "value": "email.scheduled"
+        },
+        {
+          "value": "email.suppressed"
+        },
+        {
+          "value": "contact.created"
+        },
+        {
+          "value": "contact.updated"
+        },
+        {
+          "value": "contact.deleted"
+        },
+        {
+          "value": "domain.created"
+        },
+        {
+          "value": "domain.updated"
+        },
+        {
+          "value": "domain.deleted"
+        }
+      ],
+      "type": "string"
+    }
+  },
+  "version": "0.0.1"
+}

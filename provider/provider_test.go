@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -874,10 +875,7 @@ func TestUnsetApiKeyDoesNotReplaceProvider(t *testing.T) {
 }
 
 func TestSchema(t *testing.T) {
-	fake := &fakeDomains{domains: map[string]*resend.Domain{}}
-	s := testServer(t, func(c *resend.Client) { c.Domains = fake })
-	resp, err := s.GetSchema(p.GetSchemaRequest{})
-	require.NoError(t, err)
+	schemaBytes := currentSchema(t)
 	var schema struct {
 		LogoURL string `json:"logoUrl"`
 		Config  struct {
@@ -891,7 +889,7 @@ func TestSchema(t *testing.T) {
 			} `json:"properties"`
 		} `json:"resources"`
 	}
-	require.NoError(t, json.Unmarshal([]byte(resp.Schema), &schema))
+	require.NoError(t, json.Unmarshal(schemaBytes, &schema))
 
 	for _, token := range []string{
 		"resend:index:Domain",
@@ -906,4 +904,124 @@ func TestSchema(t *testing.T) {
 	assert.True(t, schema.Config.Variables["apiKey"].Secret)
 	assert.True(t, schema.Resources["resend:index:ApiKey"].Properties["token"].Secret)
 	assert.True(t, schema.Resources["resend:index:Webhook"].Properties["signingSecret"].Secret)
+}
+
+func TestSchemaSnapshotCompatible(t *testing.T) {
+	currentBytes := currentSchema(t)
+	if os.Getenv("UPDATE_SCHEMA_SNAPSHOT") == "1" {
+		writeSchemaSnapshot(t, currentBytes)
+	}
+	baseline := decodeSchema(t, readSchemaSnapshot(t))
+	current := decodeSchema(t, currentBytes)
+
+	assertCompatibleSchema(t, baseline, current)
+}
+
+type schemaSnapshot struct {
+	Config    schemaObject              `json:"config"`
+	Provider  schemaObject              `json:"provider"`
+	Resources map[string]schemaResource `json:"resources"`
+	Types     map[string]schemaObject   `json:"types"`
+}
+
+type schemaObject struct {
+	Required        []string                  `json:"required"`
+	InputProperties map[string]schemaProperty `json:"inputProperties"`
+	Properties      map[string]schemaProperty `json:"properties"`
+	Variables       map[string]schemaProperty `json:"variables"`
+}
+
+type schemaResource struct {
+	RequiredInputs  []string                  `json:"requiredInputs"`
+	InputProperties map[string]schemaProperty `json:"inputProperties"`
+	Properties      map[string]schemaProperty `json:"properties"`
+}
+
+type schemaProperty struct {
+	Ref                  string           `json:"$ref"`
+	Type                 any              `json:"type"`
+	Items                *schemaProperty  `json:"items"`
+	AdditionalProperties *schemaProperty  `json:"additionalProperties"`
+	OneOf                []schemaProperty `json:"oneOf"`
+	Secret               bool             `json:"secret"`
+}
+
+func currentSchema(t *testing.T) []byte {
+	t.Helper()
+	fake := &fakeDomains{domains: map[string]*resend.Domain{}}
+	s := testServer(t, func(c *resend.Client) { c.Domains = fake })
+	resp, err := s.GetSchema(p.GetSchemaRequest{})
+	require.NoError(t, err)
+	return []byte(resp.Schema)
+}
+
+func readSchemaSnapshot(t *testing.T) []byte {
+	t.Helper()
+	b, err := os.ReadFile("testdata/schema.json")
+	require.NoError(t, err)
+	return b
+}
+
+func writeSchemaSnapshot(t *testing.T, data []byte) {
+	t.Helper()
+	var schema any
+	require.NoError(t, json.Unmarshal(data, &schema))
+	b, err := json.MarshalIndent(schema, "", "  ")
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile("testdata/schema.json", append(b, '\n'), 0o644))
+}
+
+func decodeSchema(t *testing.T, data []byte) schemaSnapshot {
+	t.Helper()
+	var schema schemaSnapshot
+	require.NoError(t, json.Unmarshal(data, &schema))
+	return schema
+}
+
+func assertCompatibleSchema(t *testing.T, baseline, current schemaSnapshot) {
+	t.Helper()
+	assertObjectCompatible(t, "config", baseline.Config, current.Config, true)
+	assertObjectCompatible(t, "provider", baseline.Provider, current.Provider, false)
+	for token, base := range baseline.Resources {
+		cur, ok := current.Resources[token]
+		require.True(t, ok, "resource %s was removed", token)
+		assertNoRemoved(t, "resource "+token+" input", base.InputProperties, cur.InputProperties)
+		assertNoRemoved(t, "resource "+token+" property", base.Properties, cur.Properties)
+		assertNoNewRequired(t, "resource "+token+" required input", base.RequiredInputs, cur.RequiredInputs)
+	}
+	for token, base := range baseline.Types {
+		cur, ok := current.Types[token]
+		require.True(t, ok, "type %s was removed", token)
+		assertObjectCompatible(t, "type "+token, base, cur, false)
+	}
+}
+
+func assertObjectCompatible(t *testing.T, path string, baseline, current schemaObject, variables bool) {
+	t.Helper()
+	if variables {
+		assertNoRemoved(t, path+" variable", baseline.Variables, current.Variables)
+	} else {
+		assertNoRemoved(t, path+" input property", baseline.InputProperties, current.InputProperties)
+		assertNoRemoved(t, path+" property", baseline.Properties, current.Properties)
+	}
+	assertNoNewRequired(t, path+" required property", baseline.Required, current.Required)
+}
+
+func assertNoRemoved[T any](t *testing.T, path string, baseline, current map[string]T) {
+	t.Helper()
+	for name := range baseline {
+		_, ok := current[name]
+		assert.True(t, ok, "%s %s was removed", path, name)
+	}
+}
+
+func assertNoNewRequired(t *testing.T, path string, baseline, current []string) {
+	t.Helper()
+	base := map[string]bool{}
+	for _, name := range baseline {
+		base[name] = true
+	}
+	for _, name := range current {
+		assert.True(t, base[name], "%s %s was added", path, name)
+	}
 }
