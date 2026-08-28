@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"strings"
 
 	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
@@ -63,15 +62,6 @@ func (c *Config) Configure(context.Context) error {
 
 func getClient(ctx context.Context) *resend.Client {
 	return infer.GetConfig[Config](ctx).client
-}
-
-// isNotFound reports whether err is a Resend "not found" API error.
-//
-// ponytail: resend-go collapses non-2xx responses into opaque string errors, so
-// message matching is the only signal available; switch to a typed check if the
-// SDK ever grows one.
-func isNotFound(err error) bool {
-	return err != nil && strings.Contains(strings.ToLower(err.Error()), "not found")
 }
 
 func deref[T any](v *T) T {

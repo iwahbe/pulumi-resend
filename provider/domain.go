@@ -12,19 +12,65 @@ import (
 
 type Domain struct{}
 
+type DomainRegion string
+
+const (
+	DomainRegionUSEast1      DomainRegion = "us-east-1"
+	DomainRegionEUWest1      DomainRegion = "eu-west-1"
+	DomainRegionSAEast1      DomainRegion = "sa-east-1"
+	DomainRegionAPNortheast1 DomainRegion = "ap-northeast-1"
+)
+
+func (DomainRegion) Values() []infer.EnumValue[DomainRegion] {
+	return []infer.EnumValue[DomainRegion]{
+		{Value: DomainRegionUSEast1},
+		{Value: DomainRegionEUWest1},
+		{Value: DomainRegionSAEast1},
+		{Value: DomainRegionAPNortheast1},
+	}
+}
+
+type DomainTLS string
+
+const (
+	DomainTLSEnforced      DomainTLS = "enforced"
+	DomainTLSOpportunistic DomainTLS = "opportunistic"
+)
+
+func (DomainTLS) Values() []infer.EnumValue[DomainTLS] {
+	return []infer.EnumValue[DomainTLS]{
+		{Value: DomainTLSEnforced},
+		{Value: DomainTLSOpportunistic},
+	}
+}
+
+type DomainCapabilityStatus string
+
+const (
+	DomainCapabilityStatusEnabled  DomainCapabilityStatus = "enabled"
+	DomainCapabilityStatusDisabled DomainCapabilityStatus = "disabled"
+)
+
+func (DomainCapabilityStatus) Values() []infer.EnumValue[DomainCapabilityStatus] {
+	return []infer.EnumValue[DomainCapabilityStatus]{
+		{Value: DomainCapabilityStatusEnabled},
+		{Value: DomainCapabilityStatusDisabled},
+	}
+}
+
 type DomainCapabilities struct {
-	Sending   *string `pulumi:"sending,optional"`
-	Receiving *string `pulumi:"receiving,optional"`
+	Sending   *DomainCapabilityStatus `pulumi:"sending,optional"`
+	Receiving *DomainCapabilityStatus `pulumi:"receiving,optional"`
 }
 
 type DomainArgs struct {
 	Name              string              `pulumi:"name"`
-	Region            *string             `pulumi:"region,optional"`
+	Region            *DomainRegion       `pulumi:"region,optional"`
 	CustomReturnPath  *string             `pulumi:"customReturnPath,optional"`
 	OpenTracking      *bool               `pulumi:"openTracking,optional"`
 	ClickTracking     *bool               `pulumi:"clickTracking,optional"`
 	TrackingSubdomain *string             `pulumi:"trackingSubdomain,optional"`
-	Tls               *string             `pulumi:"tls,optional"`
+	Tls               *DomainTLS          `pulumi:"tls,optional"`
 	Capabilities      *DomainCapabilities `pulumi:"capabilities,optional"`
 }
 
@@ -75,7 +121,7 @@ func (*Domain) Create(
 	client := getClient(ctx)
 	resp, err := client.Domains.CreateWithContext(ctx, &resend.CreateDomainRequest{
 		Name:              req.Inputs.Name,
-		Region:            deref(req.Inputs.Region),
+		Region:            string(deref(req.Inputs.Region)),
 		CustomReturnPath:  deref(req.Inputs.CustomReturnPath),
 		TrackingSubdomain: deref(req.Inputs.TrackingSubdomain),
 		OpenTracking:      req.Inputs.OpenTracking,
@@ -94,7 +140,7 @@ func (*Domain) Create(
 	// The create API does not accept tls; it can only be set via update.
 	if req.Inputs.Tls != nil {
 		if _, err := client.Domains.UpdateWithContext(ctx, resp.Id, &resend.UpdateDomainRequest{
-			Tls: *req.Inputs.Tls,
+			Tls: resend.TlsOption(*req.Inputs.Tls),
 		}); err != nil {
 			return infer.CreateResponse[DomainState]{ID: resp.Id, Output: state},
 				infer.ResourceInitFailedError{Reasons: []string{fmt.Sprintf("setting tls: %s", err)}}
@@ -160,7 +206,7 @@ func (*Domain) Update(
 		TrackingSubdomain: deref(req.Inputs.TrackingSubdomain),
 	}
 	if req.Inputs.Tls != nil {
-		upd.Tls = *req.Inputs.Tls
+		upd.Tls = resend.TlsOption(*req.Inputs.Tls)
 	} else if req.State.Tls != nil {
 		upd.Tls = resend.Opportunistic
 	}
@@ -199,7 +245,7 @@ func (*Domain) Read(
 	}
 	inputs := req.Inputs
 	inputs.Name = remote.Name
-	keepFresh(&inputs.Region, remote.Region)
+	keepFresh(&inputs.Region, DomainRegion(remote.Region))
 	keepFresh(&inputs.OpenTracking, remote.OpenTracking)
 	keepFresh(&inputs.ClickTracking, remote.ClickTracking)
 	keepFresh(&inputs.TrackingSubdomain, remote.TrackingSubdomain)
@@ -228,18 +274,18 @@ func capabilitiesToAPI(c *DomainCapabilities) *resend.DomainCapabilities {
 		return nil
 	}
 	return &resend.DomainCapabilities{
-		Sending:   deref(c.Sending),
-		Receiving: deref(c.Receiving),
+		Sending:   resend.DomainCapabilityStatus(deref(c.Sending)),
+		Receiving: resend.DomainCapabilityStatus(deref(c.Receiving)),
 	}
 }
 
 func capabilitiesFromAPI(c *resend.DomainCapabilities) *DomainCapabilities {
 	out := &DomainCapabilities{}
 	if c.Sending != "" {
-		out.Sending = &c.Sending
+		out.Sending = new(DomainCapabilityStatus(c.Sending))
 	}
 	if c.Receiving != "" {
-		out.Receiving = &c.Receiving
+		out.Receiving = new(DomainCapabilityStatus(c.Receiving))
 	}
 	return out
 }

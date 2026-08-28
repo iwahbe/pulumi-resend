@@ -11,10 +11,24 @@ import (
 
 type ApiKey struct{}
 
+type ApiKeyPermission string
+
+const (
+	ApiKeyPermissionFullAccess    ApiKeyPermission = "full_access"
+	ApiKeyPermissionSendingAccess ApiKeyPermission = "sending_access"
+)
+
+func (ApiKeyPermission) Values() []infer.EnumValue[ApiKeyPermission] {
+	return []infer.EnumValue[ApiKeyPermission]{
+		{Value: ApiKeyPermissionFullAccess, Description: "Full access to the Resend API."},
+		{Value: ApiKeyPermissionSendingAccess, Description: "Permission to send emails."},
+	}
+}
+
 type ApiKeyArgs struct {
-	Name       string  `pulumi:"name"`
-	Permission *string `pulumi:"permission,optional"`
-	DomainId   *string `pulumi:"domainId,optional"`
+	Name       string            `pulumi:"name"`
+	Permission *ApiKeyPermission `pulumi:"permission,optional"`
+	DomainId   *string           `pulumi:"domainId,optional"`
 }
 
 type ApiKeyState struct {
@@ -49,7 +63,7 @@ func (*ApiKey) Create(
 	}
 	resp, err := getClient(ctx).ApiKeys.CreateWithContext(ctx, &resend.CreateApiKeyRequest{
 		Name:       req.Inputs.Name,
-		Permission: deref(req.Inputs.Permission),
+		Permission: string(deref(req.Inputs.Permission)),
 		DomainId:   deref(req.Inputs.DomainId),
 	})
 	if err != nil {

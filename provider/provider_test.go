@@ -48,6 +48,7 @@ type fakeDomains struct {
 	getsUntilVerified int
 	verified          bool
 	statusAfterVerify string
+	notFoundErr       error
 }
 
 func (f *fakeDomains) CreateWithContext(ctx context.Context, params *resend.CreateDomainRequest) (resend.CreateDomainResponse, error) {
@@ -77,7 +78,7 @@ func (f *fakeDomains) CreateWithContext(ctx context.Context, params *resend.Crea
 func (f *fakeDomains) GetWithContext(ctx context.Context, id string) (resend.Domain, error) {
 	d, ok := f.domains[id]
 	if !ok {
-		return resend.Domain{}, fmt.Errorf("[ERROR]: Domain not found")
+		return resend.Domain{}, f.missingError("Domain not found")
 	}
 	if f.verified {
 		if f.getsUntilVerified > 0 {
@@ -95,7 +96,7 @@ func (f *fakeDomains) GetWithContext(ctx context.Context, id string) (resend.Dom
 func (f *fakeDomains) UpdateWithContext(ctx context.Context, id string, params *resend.UpdateDomainRequest) (resend.Domain, error) {
 	d, ok := f.domains[id]
 	if !ok {
-		return resend.Domain{}, fmt.Errorf("[ERROR]: Domain not found")
+		return resend.Domain{}, f.missingError("Domain not found")
 	}
 	f.updates = append(f.updates, *params)
 	d.ClickTracking = params.ClickTracking
@@ -108,15 +109,25 @@ func (f *fakeDomains) UpdateWithContext(ctx context.Context, id string, params *
 
 func (f *fakeDomains) VerifyWithContext(ctx context.Context, id string) (bool, error) {
 	if _, ok := f.domains[id]; !ok {
-		return false, fmt.Errorf("[ERROR]: Domain not found")
+		return false, f.missingError("Domain not found")
 	}
 	f.verified = true
 	return true, nil
 }
 
 func (f *fakeDomains) RemoveWithContext(ctx context.Context, id string) (bool, error) {
+	if _, ok := f.domains[id]; !ok {
+		return false, f.missingError("Domain not found")
+	}
 	delete(f.domains, id)
 	return true, nil
+}
+
+func (f *fakeDomains) missingError(msg string) error {
+	if f.notFoundErr != nil {
+		return f.notFoundErr
+	}
+	return fmt.Errorf("[ERROR]: %s", msg)
 }
 
 func TestDomainLifecycle(t *testing.T) {
@@ -431,9 +442,10 @@ func TestDomainVerificationWaits(t *testing.T) {
 
 type fakeApiKeys struct {
 	resend.ApiKeysSvc
-	keys       map[string]*resend.ApiKey
-	pages      [][]resend.ApiKey
-	listAfters []string
+	keys        map[string]*resend.ApiKey
+	pages       [][]resend.ApiKey
+	listAfters  []string
+	notFoundErr error
 }
 
 func (f *fakeApiKeys) CreateWithContext(ctx context.Context, params *resend.CreateApiKeyRequest) (resend.CreateApiKeyResponse, error) {
@@ -471,15 +483,25 @@ func (f *fakeApiKeys) ListWithOptions(ctx context.Context, options *resend.ListO
 func (f *fakeApiKeys) UpdateWithContext(ctx context.Context, id string, params *resend.UpdateApiKeyRequest) (resend.UpdateApiKeyResponse, error) {
 	k, ok := f.keys[id]
 	if !ok {
-		return resend.UpdateApiKeyResponse{}, fmt.Errorf("[ERROR]: API key not found")
+		return resend.UpdateApiKeyResponse{}, f.missingError("API key not found")
 	}
 	k.Name = params.Name
 	return resend.UpdateApiKeyResponse{Object: "api_key", Id: id}, nil
 }
 
 func (f *fakeApiKeys) RemoveWithContext(ctx context.Context, id string) (bool, error) {
+	if _, ok := f.keys[id]; !ok {
+		return false, f.missingError("API key not found")
+	}
 	delete(f.keys, id)
 	return true, nil
+}
+
+func (f *fakeApiKeys) missingError(msg string) error {
+	if f.notFoundErr != nil {
+		return f.notFoundErr
+	}
+	return fmt.Errorf("[ERROR]: %s", msg)
 }
 
 func TestApiKeyImportHasEmptySecretToken(t *testing.T) {
@@ -590,7 +612,8 @@ func TestApiKeyLifecycle(t *testing.T) {
 
 type fakeWebhooks struct {
 	resend.WebhooksSvc
-	hooks map[string]*resend.Webhook
+	hooks       map[string]*resend.Webhook
+	notFoundErr error
 }
 
 func (f *fakeWebhooks) CreateWithContext(ctx context.Context, params *resend.CreateWebhookRequest) (*resend.CreateWebhookResponse, error) {
@@ -605,7 +628,7 @@ func (f *fakeWebhooks) CreateWithContext(ctx context.Context, params *resend.Cre
 func (f *fakeWebhooks) GetWithContext(ctx context.Context, id string) (*resend.Webhook, error) {
 	w, ok := f.hooks[id]
 	if !ok {
-		return nil, fmt.Errorf("[ERROR]: Webhook not found")
+		return nil, f.missingError("Webhook not found")
 	}
 	return w, nil
 }
@@ -613,7 +636,7 @@ func (f *fakeWebhooks) GetWithContext(ctx context.Context, id string) (*resend.W
 func (f *fakeWebhooks) UpdateWithContext(ctx context.Context, id string, params *resend.UpdateWebhookRequest) (*resend.UpdateWebhookResponse, error) {
 	w, ok := f.hooks[id]
 	if !ok {
-		return nil, fmt.Errorf("[ERROR]: Webhook not found")
+		return nil, f.missingError("Webhook not found")
 	}
 	if params.Endpoint != nil {
 		w.Endpoint = *params.Endpoint
@@ -625,8 +648,18 @@ func (f *fakeWebhooks) UpdateWithContext(ctx context.Context, id string, params 
 }
 
 func (f *fakeWebhooks) RemoveWithContext(ctx context.Context, id string) (*resend.DeleteWebhookResponse, error) {
+	if _, ok := f.hooks[id]; !ok {
+		return nil, f.missingError("Webhook not found")
+	}
 	delete(f.hooks, id)
 	return &resend.DeleteWebhookResponse{}, nil
+}
+
+func (f *fakeWebhooks) missingError(msg string) error {
+	if f.notFoundErr != nil {
+		return f.notFoundErr
+	}
+	return fmt.Errorf("[ERROR]: %s", msg)
 }
 
 func TestWebhookImportHasEmptySecretWhenResendOmitsSigningSecret(t *testing.T) {
@@ -716,6 +749,52 @@ func TestWebhookLifecycle(t *testing.T) {
 
 	require.NoError(t, s.Delete(p.DeleteRequest{Urn: urn("Webhook", "test"), ID: created.ID, Properties: updated.Properties}))
 	assert.Empty(t, fake.hooks)
+}
+
+type statusCodeError int
+
+func (e statusCodeError) Error() string   { return fmt.Sprintf("HTTP %d", int(e)) }
+func (e statusCodeError) StatusCode() int { return int(e) }
+
+func TestTypedNotFoundRemovesResourcesAndDeletesIdempotently(t *testing.T) {
+	notFound := statusCodeError(404)
+
+	fakeDomains := &fakeDomains{domains: map[string]*resend.Domain{}, notFoundErr: notFound}
+	domainServer := testServer(t, func(c *resend.Client) { c.Domains = fakeDomains })
+	for typ, id := range map[string]string{"Domain": "dom_missing", "DomainVerification": "dom_missing"} {
+		read, err := domainServer.Read(p.ReadRequest{Urn: urn(typ, "missing"), ID: id})
+		require.NoError(t, err)
+		assert.Equal(t, "", read.ID, "%s should be removed from state when Resend returns a typed 404", typ)
+	}
+	require.NoError(t, domainServer.Delete(p.DeleteRequest{
+		Urn: urn("Domain", "missing"), ID: "dom_missing",
+		Properties: property.NewMap(map[string]property.Value{
+			"name": property.New("example.com"), "status": property.New("verified"), "createdAt": property.New("now"),
+			"records": property.New([]property.Value{}),
+		}),
+	}))
+
+	apiKeyServer := testServer(t, func(c *resend.Client) {
+		c.ApiKeys = &fakeApiKeys{keys: map[string]*resend.ApiKey{}, notFoundErr: notFound}
+	})
+	require.NoError(t, apiKeyServer.Delete(p.DeleteRequest{
+		Urn: urn("ApiKey", "missing"), ID: "key_missing",
+		Properties: property.NewMap(map[string]property.Value{"name": property.New("ci"), "token": property.New("").WithSecret(true)}),
+	}))
+
+	webhookServer := testServer(t, func(c *resend.Client) {
+		c.Webhooks = &fakeWebhooks{hooks: map[string]*resend.Webhook{}, notFoundErr: notFound}
+	})
+	read, err := webhookServer.Read(p.ReadRequest{Urn: urn("Webhook", "missing"), ID: "wh_missing"})
+	require.NoError(t, err)
+	assert.Equal(t, "", read.ID, "Webhook should be removed from state when Resend returns a typed 404")
+	require.NoError(t, webhookServer.Delete(p.DeleteRequest{
+		Urn: urn("Webhook", "missing"), ID: "wh_missing",
+		Properties: property.NewMap(map[string]property.Value{
+			"endpoint": property.New("https://example.com/hook"), "events": property.New([]property.Value{property.New("email.sent")}),
+			"signingSecret": property.New("").WithSecret(true), "status": property.New("enabled"), "createdAt": property.New("now"),
+		}),
+	}))
 }
 
 func TestReadRemovesMissingResources(t *testing.T) {
