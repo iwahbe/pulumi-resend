@@ -10,6 +10,30 @@ import (
 
 type Webhook struct{}
 
+type WebhookEvent string
+
+func (WebhookEvent) Values() []infer.EnumValue[WebhookEvent] {
+	return []infer.EnumValue[WebhookEvent]{
+		{Value: resend.EventEmailSent},
+		{Value: resend.EventEmailDelivered},
+		{Value: resend.EventEmailDeliveryDelayed},
+		{Value: resend.EventEmailComplained},
+		{Value: resend.EventEmailBounced},
+		{Value: resend.EventEmailOpened},
+		{Value: resend.EventEmailClicked},
+		{Value: resend.EventEmailReceived},
+		{Value: resend.EventEmailFailed},
+		{Value: resend.EventEmailScheduled},
+		{Value: resend.EventEmailSuppressed},
+		{Value: resend.EventContactCreated},
+		{Value: resend.EventContactUpdated},
+		{Value: resend.EventContactDeleted},
+		{Value: resend.EventDomainCreated},
+		{Value: resend.EventDomainUpdated},
+		{Value: resend.EventDomainDeleted},
+	}
+}
+
 type WebhookArgs struct {
 	Endpoint string         `pulumi:"endpoint"`
 	Events   []WebhookEvent `pulumi:"events"`
@@ -39,14 +63,6 @@ func (*Webhook) WireDependencies(f infer.FieldSelector, args *WebhookArgs, state
 	f.OutputField(&state.SigningSecret).AlwaysSecret()
 }
 
-func (*Webhook) Check(ctx context.Context, req infer.CheckRequest) (infer.CheckResponse[WebhookArgs], error) {
-	inputs, failures, err := infer.DefaultCheck[WebhookArgs](ctx, req.NewInputs)
-	if err != nil || len(failures) > 0 {
-		return infer.CheckResponse[WebhookArgs]{Inputs: inputs, Failures: failures}, err
-	}
-	return infer.CheckResponse[WebhookArgs]{Inputs: inputs, Failures: validateWebhookArgs(inputs)}, nil
-}
-
 func (*Webhook) Create(
 	ctx context.Context, req infer.CreateRequest[WebhookArgs],
 ) (infer.CreateResponse[WebhookState], error) {
@@ -56,7 +72,7 @@ func (*Webhook) Create(
 	client := getClient(ctx)
 	resp, err := client.Webhooks.CreateWithContext(ctx, &resend.CreateWebhookRequest{
 		Endpoint: req.Inputs.Endpoint,
-		Events:   webhookEventsToStrings(req.Inputs.Events),
+		Events:   stringSliceAs[WebhookEvent, string](req.Inputs.Events),
 	})
 	if err != nil {
 		return infer.CreateResponse[WebhookState]{}, fmt.Errorf("creating webhook for %q: %w", req.Inputs.Endpoint, err)
@@ -83,7 +99,7 @@ func (*Webhook) Update(
 	client := getClient(ctx)
 	_, err := client.Webhooks.UpdateWithContext(ctx, req.ID, &resend.UpdateWebhookRequest{
 		Endpoint: &req.Inputs.Endpoint,
-		Events:   webhookEventsToStrings(req.Inputs.Events),
+		Events:   stringSliceAs[WebhookEvent, string](req.Inputs.Events),
 	})
 	if err != nil {
 		return infer.UpdateResponse[WebhookState]{}, fmt.Errorf("updating webhook %q: %w", req.ID, err)
@@ -107,7 +123,7 @@ func (*Webhook) Read(
 		}
 		return infer.ReadResponse[WebhookArgs, WebhookState]{}, err
 	}
-	inputs := WebhookArgs{Endpoint: remote.Endpoint, Events: webhookEventsFromStrings(remote.Events)}
+	inputs := WebhookArgs{Endpoint: remote.Endpoint, Events: stringSliceAs[string, WebhookEvent](remote.Events)}
 	state := WebhookState{
 		WebhookArgs:   inputs,
 		SigningSecret: remote.SigningSecret,

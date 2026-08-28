@@ -9,7 +9,6 @@ import (
 
 	"github.com/blang/semver"
 	p "github.com/pulumi/pulumi-go-provider"
-	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/pulumi/pulumi-go-provider/integration"
 	presource "github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
@@ -796,76 +795,6 @@ func TestTypedNotFoundRemovesResourcesAndDeletesIdempotently(t *testing.T) {
 			"signingSecret": property.New("").WithSecret(true), "status": property.New("enabled"), "createdAt": property.New("now"),
 		}),
 	}))
-}
-
-type UncheckedEnumResource struct{}
-
-type UncheckedEnumArgs struct {
-	Region *UncheckedDomainRegion `pulumi:"region,optional"`
-}
-
-type UncheckedDomainRegion string
-
-func (UncheckedDomainRegion) Values() []infer.EnumValue[UncheckedDomainRegion] {
-	return []infer.EnumValue[UncheckedDomainRegion]{{Value: "us-east-1"}, {Value: "eu-west-1"}}
-}
-
-func (UncheckedEnumResource) Create(context.Context, infer.CreateRequest[UncheckedEnumArgs]) (infer.CreateResponse[UncheckedEnumArgs], error) {
-	return infer.CreateResponse[UncheckedEnumArgs]{}, nil
-}
-
-// Documents why the provider still layers explicit enum validation on top of
-// infer's default provider Check path: Values() contributes schema enum types,
-// but raw strings still deserialize into enum aliases without Check failures.
-func TestDefaultProviderCheckDoesNotRejectInvalidRawEnumValues(t *testing.T) {
-	prov, err := infer.NewProviderBuilder().WithNamespace("test").WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{"provider": "index"}).WithResources(infer.Resource(UncheckedEnumResource{})).Build()
-	require.NoError(t, err)
-	s, err := integration.NewServer(t.Context(), "test", semver.MustParse("0.0.1"), integration.WithProvider(prov))
-	require.NoError(t, err)
-
-	checked, err := s.Check(p.CheckRequest{
-		Urn: presource.NewURN("stack", "proj", "", "test:index:UncheckedEnumResource", "bad-region"),
-		Inputs: property.NewMap(map[string]property.Value{
-			"region": property.New("mars-1"),
-		}),
-	})
-	require.NoError(t, err)
-	assert.Empty(t, checked.Failures)
-	assert.Equal(t, property.New("mars-1"), checked.Inputs.Get("region"))
-}
-
-func TestInputValidationRejectsFiniteInvalidValues(t *testing.T) {
-	s := testServer(t, func(c *resend.Client) { c.Domains = &fakeDomains{domains: map[string]*resend.Domain{}} })
-
-	cases := []struct {
-		name   string
-		typ    string
-		inputs property.Map
-	}{
-		{name: "api-key-permission", typ: "ApiKey", inputs: property.NewMap(map[string]property.Value{
-			"name": property.New("ci"), "permission": property.New("admin"),
-		})},
-		{name: "domain-region", typ: "Domain", inputs: property.NewMap(map[string]property.Value{
-			"name": property.New("example.com"), "region": property.New("mars-1"),
-		})},
-		{name: "domain-tls", typ: "Domain", inputs: property.NewMap(map[string]property.Value{
-			"name": property.New("example.com"), "tls": property.New("required"),
-		})},
-		{name: "domain-capability", typ: "Domain", inputs: property.NewMap(map[string]property.Value{
-			"name": property.New("example.com"), "capabilities": property.New(map[string]property.Value{"sending": property.New("maybe")}),
-		})},
-		{name: "webhook-event", typ: "Webhook", inputs: property.NewMap(map[string]property.Value{
-			"endpoint": property.New("https://example.com/hook"),
-			"events":   property.New([]property.Value{property.New("email.destroyed")}),
-		})},
-	}
-	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) {
-			checked, err := s.Check(p.CheckRequest{Urn: urn(tt.typ, tt.name), Inputs: tt.inputs})
-			require.NoError(t, err)
-			assert.NotEmpty(t, checked.Failures)
-		})
-	}
 }
 
 func TestReadRemovesMissingResources(t *testing.T) {

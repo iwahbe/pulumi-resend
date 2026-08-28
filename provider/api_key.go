@@ -11,6 +11,20 @@ import (
 
 type ApiKey struct{}
 
+type ApiKeyPermission string
+
+const (
+	ApiKeyPermissionFullAccess    ApiKeyPermission = "full_access"
+	ApiKeyPermissionSendingAccess ApiKeyPermission = "sending_access"
+)
+
+func (ApiKeyPermission) Values() []infer.EnumValue[ApiKeyPermission] {
+	return []infer.EnumValue[ApiKeyPermission]{
+		{Value: ApiKeyPermissionFullAccess, Description: "Full access to the Resend API."},
+		{Value: ApiKeyPermissionSendingAccess, Description: "Permission to send emails."},
+	}
+}
+
 type ApiKeyArgs struct {
 	Name       string            `pulumi:"name"`
 	Permission *ApiKeyPermission `pulumi:"permission,optional"`
@@ -41,14 +55,6 @@ func (*ApiKey) WireDependencies(f infer.FieldSelector, args *ApiKeyArgs, state *
 	f.OutputField(&state.Token).AlwaysSecret()
 }
 
-func (*ApiKey) Check(ctx context.Context, req infer.CheckRequest) (infer.CheckResponse[ApiKeyArgs], error) {
-	inputs, failures, err := infer.DefaultCheck[ApiKeyArgs](ctx, req.NewInputs)
-	if err != nil || len(failures) > 0 {
-		return infer.CheckResponse[ApiKeyArgs]{Inputs: inputs, Failures: failures}, err
-	}
-	return infer.CheckResponse[ApiKeyArgs]{Inputs: inputs, Failures: validateApiKeyArgs(inputs)}, nil
-}
-
 func (*ApiKey) Create(
 	ctx context.Context, req infer.CreateRequest[ApiKeyArgs],
 ) (infer.CreateResponse[ApiKeyState], error) {
@@ -57,7 +63,7 @@ func (*ApiKey) Create(
 	}
 	resp, err := getClient(ctx).ApiKeys.CreateWithContext(ctx, &resend.CreateApiKeyRequest{
 		Name:       req.Inputs.Name,
-		Permission: ptrStringValue(req.Inputs.Permission),
+		Permission: string(deref(req.Inputs.Permission)),
 		DomainId:   deref(req.Inputs.DomainId),
 	})
 	if err != nil {

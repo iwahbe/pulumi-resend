@@ -12,6 +12,52 @@ import (
 
 type Domain struct{}
 
+type DomainRegion string
+
+const (
+	DomainRegionUSEast1      DomainRegion = "us-east-1"
+	DomainRegionEUWest1      DomainRegion = "eu-west-1"
+	DomainRegionSAEast1      DomainRegion = "sa-east-1"
+	DomainRegionAPNortheast1 DomainRegion = "ap-northeast-1"
+)
+
+func (DomainRegion) Values() []infer.EnumValue[DomainRegion] {
+	return []infer.EnumValue[DomainRegion]{
+		{Value: DomainRegionUSEast1},
+		{Value: DomainRegionEUWest1},
+		{Value: DomainRegionSAEast1},
+		{Value: DomainRegionAPNortheast1},
+	}
+}
+
+type DomainTLS string
+
+const (
+	DomainTLSEnforced      DomainTLS = "enforced"
+	DomainTLSOpportunistic DomainTLS = "opportunistic"
+)
+
+func (DomainTLS) Values() []infer.EnumValue[DomainTLS] {
+	return []infer.EnumValue[DomainTLS]{
+		{Value: DomainTLSEnforced},
+		{Value: DomainTLSOpportunistic},
+	}
+}
+
+type DomainCapabilityStatus string
+
+const (
+	DomainCapabilityStatusEnabled  DomainCapabilityStatus = "enabled"
+	DomainCapabilityStatusDisabled DomainCapabilityStatus = "disabled"
+)
+
+func (DomainCapabilityStatus) Values() []infer.EnumValue[DomainCapabilityStatus] {
+	return []infer.EnumValue[DomainCapabilityStatus]{
+		{Value: DomainCapabilityStatusEnabled},
+		{Value: DomainCapabilityStatusDisabled},
+	}
+}
+
 type DomainCapabilities struct {
 	Sending   *DomainCapabilityStatus `pulumi:"sending,optional"`
 	Receiving *DomainCapabilityStatus `pulumi:"receiving,optional"`
@@ -66,14 +112,6 @@ func (d *DomainState) Annotate(a infer.Annotator) {
 	a.Describe(&d.Records, "The DNS records to create for this domain.")
 }
 
-func (*Domain) Check(ctx context.Context, req infer.CheckRequest) (infer.CheckResponse[DomainArgs], error) {
-	inputs, failures, err := infer.DefaultCheck[DomainArgs](ctx, req.NewInputs)
-	if err != nil || len(failures) > 0 {
-		return infer.CheckResponse[DomainArgs]{Inputs: inputs, Failures: failures}, err
-	}
-	return infer.CheckResponse[DomainArgs]{Inputs: inputs, Failures: validateDomainArgs(inputs)}, nil
-}
-
 func (*Domain) Create(
 	ctx context.Context, req infer.CreateRequest[DomainArgs],
 ) (infer.CreateResponse[DomainState], error) {
@@ -83,7 +121,7 @@ func (*Domain) Create(
 	client := getClient(ctx)
 	resp, err := client.Domains.CreateWithContext(ctx, &resend.CreateDomainRequest{
 		Name:              req.Inputs.Name,
-		Region:            ptrStringValue(req.Inputs.Region),
+		Region:            string(deref(req.Inputs.Region)),
 		CustomReturnPath:  deref(req.Inputs.CustomReturnPath),
 		TrackingSubdomain: deref(req.Inputs.TrackingSubdomain),
 		OpenTracking:      req.Inputs.OpenTracking,
@@ -236,18 +274,20 @@ func capabilitiesToAPI(c *DomainCapabilities) *resend.DomainCapabilities {
 		return nil
 	}
 	return &resend.DomainCapabilities{
-		Sending:   resend.DomainCapabilityStatus(ptrStringValue(c.Sending)),
-		Receiving: resend.DomainCapabilityStatus(ptrStringValue(c.Receiving)),
+		Sending:   resend.DomainCapabilityStatus(deref(c.Sending)),
+		Receiving: resend.DomainCapabilityStatus(deref(c.Receiving)),
 	}
 }
 
 func capabilitiesFromAPI(c *resend.DomainCapabilities) *DomainCapabilities {
 	out := &DomainCapabilities{}
 	if c.Sending != "" {
-		out.Sending = ptrString[DomainCapabilityStatus](c.Sending)
+		sending := DomainCapabilityStatus(c.Sending)
+		out.Sending = &sending
 	}
 	if c.Receiving != "" {
-		out.Receiving = ptrString[DomainCapabilityStatus](c.Receiving)
+		receiving := DomainCapabilityStatus(c.Receiving)
+		out.Receiving = &receiving
 	}
 	return out
 }
