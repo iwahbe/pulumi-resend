@@ -32,8 +32,8 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: iwahbe/pulumi-publish@main
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: iwahbe/pulumi-publish@211f1f684151767629c827f9471fb5997cae0825 # main
         id: artifacts
         with:
           mode: dump
@@ -53,7 +53,7 @@ jobs:
         run: |
           git tag "sdk/go/${GITHUB_REF_NAME}" "$COMMIT"
           git push origin "refs/tags/sdk/go/${GITHUB_REF_NAME}"
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
       - name: Warm the Go module proxy

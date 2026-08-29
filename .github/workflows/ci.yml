@@ -33,15 +33,24 @@ jobs:
           tar -xzf "${archive}"
           sudo install -m 0755 schema-tools /usr/local/bin/schema-tools
           schema-tools version
+      - name: Fetch baseline schema from pulumi-artifacts
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin '+refs/heads/pulumi-artifacts:refs/remotes/origin/pulumi-artifacts'
+          git cat-file -e refs/remotes/origin/pulumi-artifacts:schema.json
+          git show refs/remotes/origin/pulumi-artifacts:schema.json > baseline-schema.json
+          test -s baseline-schema.json
+          jq -e '.name == "resend"' baseline-schema.json
       - name: Check generated schema compatibility
         run: |
           set -euo pipefail
           mkdir -p bin
           go build -o bin/pulumi-resource-resend .
           pulumi package get-schema ./bin/pulumi-resource-resend > current-schema.json
+          test -s current-schema.json
           schema-tools compare \
             --provider resend \
-            --old-path provider/testdata/schema.json \
+            --old-path baseline-schema.json \
             --new-path current-schema.json \
             --json --summary | tee schema-compatibility.json
           jq -e '.summary | length == 0' schema-compatibility.json

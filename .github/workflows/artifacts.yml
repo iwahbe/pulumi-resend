@@ -8,11 +8,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           # svu derives the version from tags and commit history.
           fetch-depth: 0
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
       - name: Build the provider at its next release version
@@ -21,14 +21,14 @@ jobs:
           VERSION="$(svu next)"
           go build -o bin/pulumi-resource-resend \
             -ldflags "-X github.com/iwahbe/pulumi-resend/provider.Version=${VERSION#v}" .
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: provider
           path: bin/pulumi-resource-resend
 
   publish:
     needs: build
-    uses: iwahbe/pulumi-publish/.github/workflows/publish.yml@main
+    uses: iwahbe/pulumi-publish/.github/workflows/publish.yml@211f1f684151767629c827f9471fb5997cae0825 # main
     permissions:
       contents: write
     with:

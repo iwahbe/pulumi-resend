@@ -25,6 +25,13 @@ package schema plus generated SDKs to the `pulumi-artifacts` branch via
 version is a pure function of the history up to each commit, the artifacts a
 commit publishes are exactly what its release would need.
 
+CI treats `pulumi-artifacts:schema.json` as the baseline provider schema. Pull
+requests build the provider binary, extract the candidate schema with
+`pulumi package get-schema`, and compare it against that generated baseline
+with `pulumi/schema-tools`. The workflow intentionally fails if the artifacts
+branch or schema is missing; do not check baseline schema fixtures into the
+development branch.
+
 ## Releasing
 
 1. Wait for the `artifacts` workflow to finish on the commit being released.
