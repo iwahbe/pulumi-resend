@@ -36,6 +36,7 @@ func New() (p.Provider, error) {
 			infer.Resource(&Domain{}),
 			infer.Resource(&DomainVerification{}),
 			infer.Resource(&ApiKey{}),
+			infer.Resource(&Segment{}),
 			infer.Resource(&Webhook{}),
 		).
 		Build()

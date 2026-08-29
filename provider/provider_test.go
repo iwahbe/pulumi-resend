@@ -610,6 +610,125 @@ func TestApiKeyLifecycle(t *testing.T) {
 	assert.Empty(t, fake.keys)
 }
 
+type fakeSegments struct {
+	resend.SegmentsSvc
+	segments    map[string]*resend.Segment
+	notFoundErr error
+}
+
+func (f *fakeSegments) CreateWithContext(ctx context.Context, params *resend.CreateSegmentRequest) (resend.CreateSegmentResponse, error) {
+	s := &resend.Segment{Id: "seg_1", Name: params.Name, Object: "segment", CreatedAt: "2026-08-25T00:00:00.000Z"}
+	f.segments[s.Id] = s
+	return resend.CreateSegmentResponse{Id: s.Id, Name: s.Name, Object: s.Object}, nil
+}
+
+func (f *fakeSegments) GetWithContext(ctx context.Context, id string) (resend.Segment, error) {
+	s, ok := f.segments[id]
+	if !ok {
+		return resend.Segment{}, f.missingError("Segment not found")
+	}
+	return *s, nil
+}
+
+func (f *fakeSegments) UpdateWithContext(ctx context.Context, id string, params *resend.UpdateSegmentRequest) (resend.UpdateSegmentResponse, error) {
+	s, ok := f.segments[id]
+	if !ok {
+		return resend.UpdateSegmentResponse{}, f.missingError("Segment not found")
+	}
+	s.Name = params.Name
+	return resend.UpdateSegmentResponse{Id: id, Object: "segment"}, nil
+}
+
+func (f *fakeSegments) RemoveWithContext(ctx context.Context, id string) (resend.RemoveSegmentResponse, error) {
+	if _, ok := f.segments[id]; !ok {
+		return resend.RemoveSegmentResponse{}, f.missingError("Segment not found")
+	}
+	delete(f.segments, id)
+	return resend.RemoveSegmentResponse{Id: id, Object: "segment", Deleted: true}, nil
+}
+
+func (f *fakeSegments) missingError(msg string) error {
+	if f.notFoundErr != nil {
+		return f.notFoundErr
+	}
+	return fmt.Errorf("[ERROR]: %s", msg)
+}
+
+func TestSegmentImportReadRefreshesInputsAndOutputs(t *testing.T) {
+	fake := &fakeSegments{segments: map[string]*resend.Segment{
+		"seg_1": {Id: "seg_1", Name: "imported", Object: "segment", CreatedAt: "2026-08-25T00:00:00.000Z"},
+	}}
+	s := testServer(t, func(c *resend.Client) { c.Segments = fake })
+
+	read, err := s.Read(p.ReadRequest{Urn: urn("Segment", "imported"), ID: "seg_1"})
+	require.NoError(t, err)
+	assert.Equal(t, "seg_1", read.ID)
+	assert.Equal(t, property.New("imported"), read.Inputs.Get("name"))
+	assert.Equal(t, property.New("imported"), read.Properties.Get("name"))
+	assert.Equal(t, property.New("2026-08-25T00:00:00.000Z"), read.Properties.Get("createdAt"))
+
+	fake.segments["seg_1"].Name = "renamed-remotely"
+	read, err = s.Read(p.ReadRequest{
+		Urn: urn("Segment", "refresh"), ID: "seg_1",
+		Properties: property.NewMap(map[string]property.Value{
+			"name":      property.New("imported"),
+			"createdAt": property.New("2026-08-25T00:00:00.000Z"),
+		}),
+		Inputs: property.NewMap(map[string]property.Value{"name": property.New("imported")}),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, property.New("renamed-remotely"), read.Inputs.Get("name"))
+	assert.Equal(t, property.New("renamed-remotely"), read.Properties.Get("name"))
+}
+
+func TestSegmentLifecycle(t *testing.T) {
+	fake := &fakeSegments{segments: map[string]*resend.Segment{}}
+	s := testServer(t, func(c *resend.Client) { c.Segments = fake })
+
+	inputs := property.NewMap(map[string]property.Value{"name": property.New("marketing")})
+	created, err := s.Create(p.CreateRequest{Urn: urn("Segment", "test"), Properties: inputs})
+	require.NoError(t, err)
+	assert.Equal(t, "seg_1", created.ID)
+	assert.Equal(t, property.NewMap(map[string]property.Value{
+		"name":      property.New("marketing"),
+		"createdAt": property.New("2026-08-25T00:00:00.000Z"),
+	}), created.Properties)
+
+	updatedInputs := property.NewMap(map[string]property.Value{"name": property.New("customers")})
+	diff, err := s.Diff(p.DiffRequest{
+		Urn: urn("Segment", "test"), ID: created.ID,
+		State: created.Properties, OldInputs: inputs, Inputs: updatedInputs,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]p.PropertyDiff{
+		"name": {Kind: p.Update, InputDiff: true},
+	}, diff.DetailedDiff)
+
+	updated, err := s.Update(p.UpdateRequest{
+		Urn: urn("Segment", "test"), ID: created.ID,
+		State: created.Properties, OldInputs: inputs, Inputs: updatedInputs,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "customers", fake.segments["seg_1"].Name)
+	assert.Equal(t, property.New("customers"), updated.Properties.Get("name"))
+	assert.Equal(t, property.New("2026-08-25T00:00:00.000Z"), updated.Properties.Get("createdAt"))
+
+	read, err := s.Read(p.ReadRequest{
+		Urn: urn("Segment", "test"), ID: created.ID,
+		Properties: updated.Properties, Inputs: updatedInputs,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "seg_1", read.ID)
+	assert.Equal(t, property.New("customers"), read.Properties.Get("name"))
+
+	require.NoError(t, s.Delete(p.DeleteRequest{Urn: urn("Segment", "test"), ID: created.ID, Properties: updated.Properties}))
+	assert.Empty(t, fake.segments)
+
+	read, err = s.Read(p.ReadRequest{Urn: urn("Segment", "test"), ID: created.ID, Properties: updated.Properties, Inputs: updatedInputs})
+	require.NoError(t, err)
+	assert.Equal(t, "", read.ID)
+}
+
 type fakeWebhooks struct {
 	resend.WebhooksSvc
 	hooks       map[string]*resend.Webhook
@@ -782,10 +901,21 @@ func TestTypedNotFoundRemovesResourcesAndDeletesIdempotently(t *testing.T) {
 		Properties: property.NewMap(map[string]property.Value{"name": property.New("ci"), "token": property.New("").WithSecret(true)}),
 	}))
 
+	segmentServer := testServer(t, func(c *resend.Client) {
+		c.Segments = &fakeSegments{segments: map[string]*resend.Segment{}, notFoundErr: notFound}
+	})
+	read, err := segmentServer.Read(p.ReadRequest{Urn: urn("Segment", "missing"), ID: "seg_missing"})
+	require.NoError(t, err)
+	assert.Equal(t, "", read.ID, "Segment should be removed from state when Resend returns a typed 404")
+	require.NoError(t, segmentServer.Delete(p.DeleteRequest{
+		Urn: urn("Segment", "missing"), ID: "seg_missing",
+		Properties: property.NewMap(map[string]property.Value{"name": property.New("marketing"), "createdAt": property.New("now")}),
+	}))
+
 	webhookServer := testServer(t, func(c *resend.Client) {
 		c.Webhooks = &fakeWebhooks{hooks: map[string]*resend.Webhook{}, notFoundErr: notFound}
 	})
-	read, err := webhookServer.Read(p.ReadRequest{Urn: urn("Webhook", "missing"), ID: "wh_missing"})
+	read, err = webhookServer.Read(p.ReadRequest{Urn: urn("Webhook", "missing"), ID: "wh_missing"})
 	require.NoError(t, err)
 	assert.Equal(t, "", read.ID, "Webhook should be removed from state when Resend returns a typed 404")
 	require.NoError(t, webhookServer.Delete(p.DeleteRequest{
@@ -810,6 +940,11 @@ func TestReadRemovesMissingResources(t *testing.T) {
 	read, err := apiKeyServer.Read(p.ReadRequest{Urn: urn("ApiKey", "missing"), ID: "key_missing"})
 	require.NoError(t, err)
 	assert.Equal(t, "", read.ID, "ApiKey should be removed from state when omitted from the API listing")
+
+	segmentServer := testServer(t, func(c *resend.Client) { c.Segments = &fakeSegments{segments: map[string]*resend.Segment{}} })
+	read, err = segmentServer.Read(p.ReadRequest{Urn: urn("Segment", "missing"), ID: "seg_missing"})
+	require.NoError(t, err)
+	assert.Equal(t, "", read.ID, "Segment should be removed from state when Resend reports not found")
 
 	webhookServer := testServer(t, func(c *resend.Client) { c.Webhooks = &fakeWebhooks{hooks: map[string]*resend.Webhook{}} })
 	read, err = webhookServer.Read(p.ReadRequest{Urn: urn("Webhook", "missing"), ID: "wh_missing"})
