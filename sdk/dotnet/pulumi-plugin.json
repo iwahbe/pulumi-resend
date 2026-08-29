@@ -1,0 +1,6 @@
+{
+  "resource": true,
+  "name": "resend",
+  "version": "0.0.4",
+  "server": "github://api.github.com/iwahbe/pulumi-resend"
+}

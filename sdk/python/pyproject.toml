@@ -1,0 +1,21 @@
+[project]
+  name = "iwahbe_resend"
+  description = "A Pulumi provider for managing Resend email infrastructure."
+  dependencies = ["parver>=0.2.1", "pulumi>=3.231.0,<4.0.0", "semver>=2.8.1", "typing-extensions>=4.11,<5; python_version < \"3.11\""]
+  readme = "README.md"
+  requires-python = ">=3.9"
+  version = "0.0.4"
+  [project.license]
+    text = "Apache-2.0"
+  [project.urls]
+    Homepage = "https://resend.com/"
+    Repository = "https://github.com/iwahbe/pulumi-resend"
+
+[build-system]
+  requires = ["setuptools>=61.0"]
+  build-backend = "setuptools.build_meta"
+
+[tool]
+  [tool.setuptools]
+    [tool.setuptools.package-data]
+      iwahbe_resend = ["py.typed", "pulumi-plugin.json"]
