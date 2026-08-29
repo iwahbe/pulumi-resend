@@ -145,6 +145,7 @@ pulumi package add resend --server github://api.github.com/iwahbe/pulumi-resend
 go build ./...       # build the provider
 go test ./...        # run tests
 go build -o pulumi-resource-resend && pulumi package get-schema ./pulumi-resource-resend  # inspect the schema
+# PR CI compares that schema with the merge-base commit's pulumi-artifacts/schema.json using pulumi/schema-tools v0.8.1.
 ```
 
 Releases are cut by pushing a `v*` tag; goreleaser builds the

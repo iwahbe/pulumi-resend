@@ -872,38 +872,3 @@ func TestUnsetApiKeyDoesNotReplaceProvider(t *testing.T) {
 	}
 	assert.False(t, diff.HasChanges)
 }
-
-func TestSchema(t *testing.T) {
-	fake := &fakeDomains{domains: map[string]*resend.Domain{}}
-	s := testServer(t, func(c *resend.Client) { c.Domains = fake })
-	resp, err := s.GetSchema(p.GetSchemaRequest{})
-	require.NoError(t, err)
-	var schema struct {
-		LogoURL string `json:"logoUrl"`
-		Config  struct {
-			Variables map[string]struct {
-				Secret bool `json:"secret"`
-			} `json:"variables"`
-		} `json:"config"`
-		Resources map[string]struct {
-			Properties map[string]struct {
-				Secret bool `json:"secret"`
-			} `json:"properties"`
-		} `json:"resources"`
-	}
-	require.NoError(t, json.Unmarshal([]byte(resp.Schema), &schema))
-
-	for _, token := range []string{
-		"resend:index:Domain",
-		"resend:index:DomainVerification",
-		"resend:index:ApiKey",
-		"resend:index:Webhook",
-	} {
-		_, ok := schema.Resources[token]
-		assert.True(t, ok, "missing resource %s", token)
-	}
-	assert.Equal(t, "https://raw.githubusercontent.com/iwahbe/pulumi-resend/main/assets/resend-icon-black.svg", schema.LogoURL)
-	assert.True(t, schema.Config.Variables["apiKey"].Secret)
-	assert.True(t, schema.Resources["resend:index:ApiKey"].Properties["token"].Secret)
-	assert.True(t, schema.Resources["resend:index:Webhook"].Properties["signingSecret"].Secret)
-}
