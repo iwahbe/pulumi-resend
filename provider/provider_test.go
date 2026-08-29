@@ -879,7 +879,8 @@ func TestSchema(t *testing.T) {
 	resp, err := s.GetSchema(p.GetSchemaRequest{})
 	require.NoError(t, err)
 	var schema struct {
-		Config struct {
+		LogoURL string `json:"logoUrl"`
+		Config  struct {
 			Variables map[string]struct {
 				Secret bool `json:"secret"`
 			} `json:"variables"`
@@ -901,6 +902,7 @@ func TestSchema(t *testing.T) {
 		_, ok := schema.Resources[token]
 		assert.True(t, ok, "missing resource %s", token)
 	}
+	assert.Equal(t, "https://raw.githubusercontent.com/iwahbe/pulumi-resend/main/assets/resend-icon-black.svg", schema.LogoURL)
 	assert.True(t, schema.Config.Variables["apiKey"].Secret)
 	assert.True(t, schema.Resources["resend:index:ApiKey"].Properties["token"].Secret)
 	assert.True(t, schema.Resources["resend:index:Webhook"].Properties["signingSecret"].Secret)

@@ -26,7 +26,7 @@ func New() (p.Provider, error) {
 		WithRepository("https://github.com/iwahbe/pulumi-resend").
 		WithLicense("Apache-2.0").
 		WithPluginDownloadURL("github://api.github.com/iwahbe/pulumi-resend").
-		WithLogoURL("https://github.com/iwahbe/pulumi-resend/blob/main/assets/resend-icon-black.svg").
+		WithLogoURL("https://raw.githubusercontent.com/iwahbe/pulumi-resend/main/assets/resend-icon-black.svg").
 		WithGoImportPath("github.com/iwahbe/pulumi-resend/sdk/go/resend").
 		WithConfig(infer.Config(&Config{})).
 		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{"provider": "index"}).
