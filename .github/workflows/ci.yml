@@ -10,10 +10,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
-      - uses: pulumi/setup-pulumi@b374ceb6168550de27c6eba92e01c1a774040e11 # v2.0.0
+      - uses: pulumi/actions@8e5e406f4007fca908480587cb9893c07090f58d # v7.0.0
         with:
           pulumi-version: 3.259.0
       - run: go build ./...
@@ -33,14 +36,27 @@ jobs:
           tar -xzf "${archive}"
           sudo install -m 0755 schema-tools /usr/local/bin/schema-tools
           schema-tools version
-      - name: Fetch baseline schema from pulumi-artifacts
+      - name: Determine baseline source commit
+        id: baseline-source
+        env:
+          BASE_REF: ${{ github.base_ref || github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          git fetch --depth=1 origin '+refs/heads/pulumi-artifacts:refs/remotes/origin/pulumi-artifacts'
-          git cat-file -e refs/remotes/origin/pulumi-artifacts:schema.json
-          git show refs/remotes/origin/pulumi-artifacts:schema.json > baseline-schema.json
-          test -s baseline-schema.json
-          jq -e '.name == "resend"' baseline-schema.json
+          git fetch origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+          sha="$(git merge-base HEAD "origin/${BASE_REF}")"
+          test -n "$sha"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Baseline source commit: $sha"
+      - uses: iwahbe/pulumi-publish@211f1f684151767629c827f9471fb5997cae0825 # main
+        with:
+          mode: dump
+          ref: ${{ steps.baseline-source.outputs.sha }}
+          path: baseline
+      - name: Validate baseline schema
+        run: |
+          set -euo pipefail
+          test -s baseline/schema.json
+          jq -e '.name == "resend"' baseline/schema.json
       - name: Check generated schema compatibility
         run: |
           set -euo pipefail
@@ -50,7 +66,7 @@ jobs:
           test -s current-schema.json
           schema-tools compare \
             --provider resend \
-            --old-path baseline-schema.json \
+            --old-path baseline/schema.json \
             --new-path current-schema.json \
             --json --summary | tee schema-compatibility.json
           jq -e '.summary | length == 0' schema-compatibility.json
