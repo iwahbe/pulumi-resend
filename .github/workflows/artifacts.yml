@@ -1,0 +1,36 @@
+name: artifacts
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # svu derives the version from tags and commit history.
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Build the provider at its next release version
+        run: |
+          go install github.com/caarlos0/svu/v3@v3.4.1
+          VERSION="$(svu next)"
+          go build -o bin/pulumi-resource-resend \
+            -ldflags "-X github.com/iwahbe/pulumi-resend/provider.Version=${VERSION#v}" .
+      - uses: actions/upload-artifact@v7
+        with:
+          name: provider
+          path: bin/pulumi-resource-resend
+
+  publish:
+    needs: build
+    uses: iwahbe/pulumi-publish/.github/workflows/publish.yml@main
+    permissions:
+      contents: write
+    with:
+      provider-artifact: provider
+      provider-binary: pulumi-resource-resend

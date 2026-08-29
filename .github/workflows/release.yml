@@ -24,3 +24,41 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Tag the release commit's prebuilt artifacts as sdk/go/<version> so the Go
+  # SDK module (github.com/iwahbe/pulumi-resend/sdk/go) resolves at this
+  # version.
+  publish-go-sdk:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: iwahbe/pulumi-publish@main
+        id: artifacts
+        with:
+          mode: dump
+          ref: ${{ github.ref_name }}
+          path: prebuilt
+      - name: Assert the artifacts were built at the released version
+        run: |
+          SCHEMA_VERSION="$(jq -r .version prebuilt/schema.json)"
+          if [ "$SCHEMA_VERSION" != "${GITHUB_REF_NAME#v}" ]; then
+            echo "::error::artifacts for ${GITHUB_REF_NAME} embed version" \
+              "${SCHEMA_VERSION}; was the tag created with 'svu next'?"
+            exit 1
+          fi
+      - name: Tag the artifacts commit
+        env:
+          COMMIT: ${{ steps.artifacts.outputs.commit }}
+        run: |
+          git tag "sdk/go/${GITHUB_REF_NAME}" "$COMMIT"
+          git push origin "refs/tags/sdk/go/${GITHUB_REF_NAME}"
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Warm the Go module proxy
+        continue-on-error: true
+        run: |
+          cd "$(mktemp -d)"
+          go mod init warm
+          go get "github.com/iwahbe/pulumi-resend/sdk/go@${GITHUB_REF_NAME}"
