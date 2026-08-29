@@ -28,8 +28,10 @@ func New() (p.Provider, error) {
 		WithPluginDownloadURL("github://api.github.com/iwahbe/pulumi-resend").
 		WithLogoURL("https://raw.githubusercontent.com/iwahbe/pulumi-resend/main/assets/resend-icon-black.svg").
 		WithGoImportPath("github.com/iwahbe/pulumi-resend/sdk/go/resend").
+		WithSupportPack(true).
 		WithConfig(infer.Config(&Config{})).
 		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{"provider": "index"}).
+		WithHomepage("https://resend.com/").
 		WithResources(
 			infer.Resource(&Domain{}),
 			infer.Resource(&DomainVerification{}),
