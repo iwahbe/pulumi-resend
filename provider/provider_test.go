@@ -701,7 +701,7 @@ func TestSegmentLifecycle(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, map[string]p.PropertyDiff{
-		"name": {Kind: p.Update, InputDiff: true},
+		"name": {Kind: p.Update},
 	}, diff.DetailedDiff)
 
 	updated, err := s.Update(p.UpdateRequest{

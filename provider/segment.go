@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	p "github.com/pulumi/pulumi-go-provider"
 	"github.com/pulumi/pulumi-go-provider/infer"
 	"github.com/resend/resend-go/v4"
 )
@@ -21,7 +20,7 @@ type SegmentState struct {
 }
 
 func (s *Segment) Annotate(a infer.Annotator) {
-	a.Describe(&s, "A Resend segment for grouping contacts. This resource models only declarative segment CRUD.")
+	a.Describe(&s, "A Resend segment for grouping contacts.")
 }
 
 func (s *SegmentArgs) Annotate(a infer.Annotator) {
@@ -29,7 +28,7 @@ func (s *SegmentArgs) Annotate(a infer.Annotator) {
 }
 
 func (s *SegmentState) Annotate(a infer.Annotator) {
-	a.Describe(&s.CreatedAt, "The timestamp when Resend created the segment.")
+	a.Describe(&s.CreatedAt, "The timestamp when Resend created the segment, as returned by the Resend API `created_at` string in `YYYY-MM-DD HH:MM:SS.mmm+00` format (for example, `2026-10-06 22:59:55.977+00`).")
 }
 
 func (*Segment) Create(
@@ -52,16 +51,6 @@ func (*Segment) Create(
 	state.Name = remote.Name
 	state.CreatedAt = remote.CreatedAt
 	return infer.CreateResponse[SegmentState]{ID: resp.Id, Output: state}, nil
-}
-
-func (*Segment) Diff(
-	ctx context.Context, req infer.DiffRequest[SegmentArgs, SegmentState],
-) (infer.DiffResponse, error) {
-	diff := map[string]p.PropertyDiff{}
-	if req.State.Name != req.Inputs.Name {
-		diff["name"] = p.PropertyDiff{Kind: p.Update, InputDiff: true}
-	}
-	return p.DiffResponse{HasChanges: len(diff) > 0, DetailedDiff: diff}, nil
 }
 
 func (*Segment) Update(
