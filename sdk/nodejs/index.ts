@@ -25,6 +25,11 @@ export type Provider = import("./provider").Provider;
 export const Provider: typeof import("./provider").Provider = null as any;
 utilities.lazyLoad(exports, ["Provider"], () => require("./provider"));
 
+export { SegmentArgs } from "./segment";
+export type Segment = import("./segment").Segment;
+export const Segment: typeof import("./segment").Segment = null as any;
+utilities.lazyLoad(exports, ["Segment"], () => require("./segment"));
+
 export { WebhookArgs } from "./webhook";
 export type Webhook = import("./webhook").Webhook;
 export const Webhook: typeof import("./webhook").Webhook = null as any;
@@ -53,6 +58,8 @@ const _module = {
                 return new Domain(name, <any>undefined, { urn })
             case "resend:index:DomainVerification":
                 return new DomainVerification(name, <any>undefined, { urn })
+            case "resend:index:Segment":
+                return new Segment(name, <any>undefined, { urn })
             case "resend:index:Webhook":
                 return new Webhook(name, <any>undefined, { urn })
             default:

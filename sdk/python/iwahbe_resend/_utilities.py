@@ -323,4 +323,4 @@ def get_plugin_download_url():
 	return "github://api.github.com/iwahbe/pulumi-resend"
 
 def get_version():
-    return "0.0.4"
+    return "0.1.0"
