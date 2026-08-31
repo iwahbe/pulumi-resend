@@ -29,6 +29,8 @@ func (m *module) Construct(ctx *pulumi.Context, name, typ, urn string) (r pulumi
 		r = &DomainVerification{}
 	case "resend:index:Segment":
 		r = &Segment{}
+	case "resend:index:Topic":
+		r = &Topic{}
 	case "resend:index:Webhook":
 		r = &Webhook{}
 	default:

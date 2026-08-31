@@ -38,6 +38,19 @@ export const DomainTLS = {
 
 export type DomainTLS = (typeof DomainTLS)[keyof typeof DomainTLS];
 
+export const TopicDefaultSubscription = {
+    /**
+     * Subscribe new contacts to this topic by default.
+     */
+    Opt_in: "opt_in",
+    /**
+     * Do not subscribe new contacts to this topic by default.
+     */
+    Opt_out: "opt_out",
+} as const;
+
+export type TopicDefaultSubscription = (typeof TopicDefaultSubscription)[keyof typeof TopicDefaultSubscription];
+
 export const WebhookEvent = {
     Email_sent: "email.sent",
     Email_delivered: "email.delivered",

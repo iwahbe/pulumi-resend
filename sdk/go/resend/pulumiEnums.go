@@ -676,6 +676,173 @@ func (in *domainTLSPtr) ToDomainTLSPtrOutputWithContext(ctx context.Context) Dom
 	return pulumi.ToOutputWithContext(ctx, in).(DomainTLSPtrOutput)
 }
 
+type TopicDefaultSubscription string
+
+const (
+	// Subscribe new contacts to this topic by default.
+	TopicDefaultSubscription_Opt_in = TopicDefaultSubscription("opt_in")
+	// Do not subscribe new contacts to this topic by default.
+	TopicDefaultSubscription_Opt_out = TopicDefaultSubscription("opt_out")
+)
+
+func (TopicDefaultSubscription) ElementType() reflect.Type {
+	return reflect.TypeOf((*TopicDefaultSubscription)(nil)).Elem()
+}
+
+func (e TopicDefaultSubscription) ToTopicDefaultSubscriptionOutput() TopicDefaultSubscriptionOutput {
+	return pulumi.ToOutput(e).(TopicDefaultSubscriptionOutput)
+}
+
+func (e TopicDefaultSubscription) ToTopicDefaultSubscriptionOutputWithContext(ctx context.Context) TopicDefaultSubscriptionOutput {
+	return pulumi.ToOutputWithContext(ctx, e).(TopicDefaultSubscriptionOutput)
+}
+
+func (e TopicDefaultSubscription) ToTopicDefaultSubscriptionPtrOutput() TopicDefaultSubscriptionPtrOutput {
+	return e.ToTopicDefaultSubscriptionPtrOutputWithContext(context.Background())
+}
+
+func (e TopicDefaultSubscription) ToTopicDefaultSubscriptionPtrOutputWithContext(ctx context.Context) TopicDefaultSubscriptionPtrOutput {
+	return TopicDefaultSubscription(e).ToTopicDefaultSubscriptionOutputWithContext(ctx).ToTopicDefaultSubscriptionPtrOutputWithContext(ctx)
+}
+
+func (e TopicDefaultSubscription) ToStringOutput() pulumi.StringOutput {
+	return pulumi.ToOutput(pulumi.String(e)).(pulumi.StringOutput)
+}
+
+func (e TopicDefaultSubscription) ToStringOutputWithContext(ctx context.Context) pulumi.StringOutput {
+	return pulumi.ToOutputWithContext(ctx, pulumi.String(e)).(pulumi.StringOutput)
+}
+
+func (e TopicDefaultSubscription) ToStringPtrOutput() pulumi.StringPtrOutput {
+	return pulumi.String(e).ToStringPtrOutputWithContext(context.Background())
+}
+
+func (e TopicDefaultSubscription) ToStringPtrOutputWithContext(ctx context.Context) pulumi.StringPtrOutput {
+	return pulumi.String(e).ToStringOutputWithContext(ctx).ToStringPtrOutputWithContext(ctx)
+}
+
+type TopicDefaultSubscriptionOutput struct{ *pulumi.OutputState }
+
+func (TopicDefaultSubscriptionOutput) ElementType() reflect.Type {
+	return reflect.TypeOf((*TopicDefaultSubscription)(nil)).Elem()
+}
+
+func (o TopicDefaultSubscriptionOutput) ToTopicDefaultSubscriptionOutput() TopicDefaultSubscriptionOutput {
+	return o
+}
+
+func (o TopicDefaultSubscriptionOutput) ToTopicDefaultSubscriptionOutputWithContext(ctx context.Context) TopicDefaultSubscriptionOutput {
+	return o
+}
+
+func (o TopicDefaultSubscriptionOutput) ToTopicDefaultSubscriptionPtrOutput() TopicDefaultSubscriptionPtrOutput {
+	return o.ToTopicDefaultSubscriptionPtrOutputWithContext(context.Background())
+}
+
+func (o TopicDefaultSubscriptionOutput) ToTopicDefaultSubscriptionPtrOutputWithContext(ctx context.Context) TopicDefaultSubscriptionPtrOutput {
+	return o.ApplyTWithContext(ctx, func(_ context.Context, v TopicDefaultSubscription) *TopicDefaultSubscription {
+		return &v
+	}).(TopicDefaultSubscriptionPtrOutput)
+}
+
+func (o TopicDefaultSubscriptionOutput) ToStringOutput() pulumi.StringOutput {
+	return o.ToStringOutputWithContext(context.Background())
+}
+
+func (o TopicDefaultSubscriptionOutput) ToStringOutputWithContext(ctx context.Context) pulumi.StringOutput {
+	return o.ApplyTWithContext(ctx, func(_ context.Context, e TopicDefaultSubscription) string {
+		return string(e)
+	}).(pulumi.StringOutput)
+}
+
+func (o TopicDefaultSubscriptionOutput) ToStringPtrOutput() pulumi.StringPtrOutput {
+	return o.ToStringPtrOutputWithContext(context.Background())
+}
+
+func (o TopicDefaultSubscriptionOutput) ToStringPtrOutputWithContext(ctx context.Context) pulumi.StringPtrOutput {
+	return o.ApplyTWithContext(ctx, func(_ context.Context, e TopicDefaultSubscription) *string {
+		v := string(e)
+		return &v
+	}).(pulumi.StringPtrOutput)
+}
+
+type TopicDefaultSubscriptionPtrOutput struct{ *pulumi.OutputState }
+
+func (TopicDefaultSubscriptionPtrOutput) ElementType() reflect.Type {
+	return reflect.TypeOf((**TopicDefaultSubscription)(nil)).Elem()
+}
+
+func (o TopicDefaultSubscriptionPtrOutput) ToTopicDefaultSubscriptionPtrOutput() TopicDefaultSubscriptionPtrOutput {
+	return o
+}
+
+func (o TopicDefaultSubscriptionPtrOutput) ToTopicDefaultSubscriptionPtrOutputWithContext(ctx context.Context) TopicDefaultSubscriptionPtrOutput {
+	return o
+}
+
+func (o TopicDefaultSubscriptionPtrOutput) Elem() TopicDefaultSubscriptionOutput {
+	return o.ApplyT(func(v *TopicDefaultSubscription) TopicDefaultSubscription {
+		if v != nil {
+			return *v
+		}
+		var ret TopicDefaultSubscription
+		return ret
+	}).(TopicDefaultSubscriptionOutput)
+}
+
+func (o TopicDefaultSubscriptionPtrOutput) ToStringPtrOutput() pulumi.StringPtrOutput {
+	return o.ToStringPtrOutputWithContext(context.Background())
+}
+
+func (o TopicDefaultSubscriptionPtrOutput) ToStringPtrOutputWithContext(ctx context.Context) pulumi.StringPtrOutput {
+	return o.ApplyTWithContext(ctx, func(_ context.Context, e *TopicDefaultSubscription) *string {
+		if e == nil {
+			return nil
+		}
+		v := string(*e)
+		return &v
+	}).(pulumi.StringPtrOutput)
+}
+
+// TopicDefaultSubscriptionInput is an input type that accepts values of the TopicDefaultSubscription enum
+// A concrete instance of `TopicDefaultSubscriptionInput` can be one of the following:
+//
+//	TopicDefaultSubscription_Opt_in
+//	TopicDefaultSubscription_Opt_out
+type TopicDefaultSubscriptionInput interface {
+	pulumi.Input
+
+	ToTopicDefaultSubscriptionOutput() TopicDefaultSubscriptionOutput
+	ToTopicDefaultSubscriptionOutputWithContext(context.Context) TopicDefaultSubscriptionOutput
+}
+
+var topicDefaultSubscriptionPtrType = reflect.TypeOf((**TopicDefaultSubscription)(nil)).Elem()
+
+type TopicDefaultSubscriptionPtrInput interface {
+	pulumi.Input
+
+	ToTopicDefaultSubscriptionPtrOutput() TopicDefaultSubscriptionPtrOutput
+	ToTopicDefaultSubscriptionPtrOutputWithContext(context.Context) TopicDefaultSubscriptionPtrOutput
+}
+
+type topicDefaultSubscriptionPtr string
+
+func TopicDefaultSubscriptionPtr(v string) TopicDefaultSubscriptionPtrInput {
+	return (*topicDefaultSubscriptionPtr)(&v)
+}
+
+func (*topicDefaultSubscriptionPtr) ElementType() reflect.Type {
+	return topicDefaultSubscriptionPtrType
+}
+
+func (in *topicDefaultSubscriptionPtr) ToTopicDefaultSubscriptionPtrOutput() TopicDefaultSubscriptionPtrOutput {
+	return pulumi.ToOutput(in).(TopicDefaultSubscriptionPtrOutput)
+}
+
+func (in *topicDefaultSubscriptionPtr) ToTopicDefaultSubscriptionPtrOutputWithContext(ctx context.Context) TopicDefaultSubscriptionPtrOutput {
+	return pulumi.ToOutputWithContext(ctx, in).(TopicDefaultSubscriptionPtrOutput)
+}
+
 type WebhookEvent string
 
 const (
@@ -925,6 +1092,8 @@ func init() {
 	pulumi.RegisterInputType(reflect.TypeOf((*DomainRegionPtrInput)(nil)).Elem(), DomainRegion("us-east-1"))
 	pulumi.RegisterInputType(reflect.TypeOf((*DomainTLSInput)(nil)).Elem(), DomainTLS("enforced"))
 	pulumi.RegisterInputType(reflect.TypeOf((*DomainTLSPtrInput)(nil)).Elem(), DomainTLS("enforced"))
+	pulumi.RegisterInputType(reflect.TypeOf((*TopicDefaultSubscriptionInput)(nil)).Elem(), TopicDefaultSubscription("opt_in"))
+	pulumi.RegisterInputType(reflect.TypeOf((*TopicDefaultSubscriptionPtrInput)(nil)).Elem(), TopicDefaultSubscription("opt_in"))
 	pulumi.RegisterInputType(reflect.TypeOf((*WebhookEventInput)(nil)).Elem(), WebhookEvent("email.sent"))
 	pulumi.RegisterInputType(reflect.TypeOf((*WebhookEventPtrInput)(nil)).Elem(), WebhookEvent("email.sent"))
 	pulumi.RegisterInputType(reflect.TypeOf((*WebhookEventArrayInput)(nil)).Elem(), WebhookEventArray{})
@@ -936,6 +1105,8 @@ func init() {
 	pulumi.RegisterOutputType(DomainRegionPtrOutput{})
 	pulumi.RegisterOutputType(DomainTLSOutput{})
 	pulumi.RegisterOutputType(DomainTLSPtrOutput{})
+	pulumi.RegisterOutputType(TopicDefaultSubscriptionOutput{})
+	pulumi.RegisterOutputType(TopicDefaultSubscriptionPtrOutput{})
 	pulumi.RegisterOutputType(WebhookEventOutput{})
 	pulumi.RegisterOutputType(WebhookEventPtrOutput{})
 	pulumi.RegisterOutputType(WebhookEventArrayOutput{})

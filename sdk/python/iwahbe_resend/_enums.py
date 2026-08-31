@@ -11,6 +11,7 @@ __all__ = [
     'DomainCapabilityStatus',
     'DomainRegion',
     'DomainTLS',
+    'TopicDefaultSubscription',
     'WebhookEvent',
 ]
 
@@ -45,6 +46,18 @@ class DomainRegion(_builtins.str, Enum):
 class DomainTLS(_builtins.str, Enum):
     ENFORCED = "enforced"
     OPPORTUNISTIC = "opportunistic"
+
+
+@pulumi.type_token("resend:index:TopicDefaultSubscription")
+class TopicDefaultSubscription(_builtins.str, Enum):
+    OPT_IN = "opt_in"
+    """
+    Subscribe new contacts to this topic by default.
+    """
+    OPT_OUT = "opt_out"
+    """
+    Do not subscribe new contacts to this topic by default.
+    """
 
 
 @pulumi.type_token("resend:index:WebhookEvent")

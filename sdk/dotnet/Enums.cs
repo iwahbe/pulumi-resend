@@ -128,6 +128,40 @@ namespace Iwahbe.Resend
     }
 
     [EnumType]
+    public readonly struct TopicDefaultSubscription : IEquatable<TopicDefaultSubscription>
+    {
+        private readonly string _value;
+
+        private TopicDefaultSubscription(string value)
+        {
+            _value = value ?? throw new ArgumentNullException(nameof(value));
+        }
+
+        /// <summary>
+        /// Subscribe new contacts to this topic by default.
+        /// </summary>
+        public static TopicDefaultSubscription Opt_in { get; } = new TopicDefaultSubscription("opt_in");
+        /// <summary>
+        /// Do not subscribe new contacts to this topic by default.
+        /// </summary>
+        public static TopicDefaultSubscription Opt_out { get; } = new TopicDefaultSubscription("opt_out");
+
+        public static bool operator ==(TopicDefaultSubscription left, TopicDefaultSubscription right) => left.Equals(right);
+        public static bool operator !=(TopicDefaultSubscription left, TopicDefaultSubscription right) => !left.Equals(right);
+
+        public static explicit operator string(TopicDefaultSubscription value) => value._value;
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public override bool Equals(object? obj) => obj is TopicDefaultSubscription other && Equals(other);
+        public bool Equals(TopicDefaultSubscription other) => string.Equals(_value, other._value, StringComparison.Ordinal);
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public override int GetHashCode() => _value?.GetHashCode() ?? 0;
+
+        public override string ToString() => _value;
+    }
+
+    [EnumType]
     public readonly struct WebhookEvent : IEquatable<WebhookEvent>
     {
         private readonly string _value;

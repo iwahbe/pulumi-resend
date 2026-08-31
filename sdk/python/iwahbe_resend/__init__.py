@@ -12,6 +12,7 @@ from .domain import *
 from .domain_verification import *
 from .provider import *
 from .segment import *
+from .topic import *
 from .webhook import *
 from ._inputs import *
 from . import outputs
@@ -35,6 +36,7 @@ _utilities.register(
    "resend:index:Domain": "Domain",
    "resend:index:DomainVerification": "DomainVerification",
    "resend:index:Segment": "Segment",
+   "resend:index:Topic": "Topic",
    "resend:index:Webhook": "Webhook"
   }
  }

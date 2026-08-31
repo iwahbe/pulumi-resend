@@ -27,6 +27,7 @@
         "index.ts",
         "provider.ts",
         "segment.ts",
+        "topic.ts",
         "types/enums/index.ts",
         "types/index.ts",
         "types/input.ts",

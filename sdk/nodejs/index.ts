@@ -30,6 +30,11 @@ export type Segment = import("./segment").Segment;
 export const Segment: typeof import("./segment").Segment = null as any;
 utilities.lazyLoad(exports, ["Segment"], () => require("./segment"));
 
+export { TopicArgs } from "./topic";
+export type Topic = import("./topic").Topic;
+export const Topic: typeof import("./topic").Topic = null as any;
+utilities.lazyLoad(exports, ["Topic"], () => require("./topic"));
+
 export { WebhookArgs } from "./webhook";
 export type Webhook = import("./webhook").Webhook;
 export const Webhook: typeof import("./webhook").Webhook = null as any;
@@ -60,6 +65,8 @@ const _module = {
                 return new DomainVerification(name, <any>undefined, { urn })
             case "resend:index:Segment":
                 return new Segment(name, <any>undefined, { urn })
+            case "resend:index:Topic":
+                return new Topic(name, <any>undefined, { urn })
             case "resend:index:Webhook":
                 return new Webhook(name, <any>undefined, { urn })
             default:

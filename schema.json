@@ -138,6 +138,19 @@
         }
       ]
     },
+    "resend:index:TopicDefaultSubscription": {
+      "type": "string",
+      "enum": [
+        {
+          "description": "Subscribe new contacts to this topic by default.",
+          "value": "opt_in"
+        },
+        {
+          "description": "Do not subscribe new contacts to this topic by default.",
+          "value": "opt_out"
+        }
+      ]
+    },
     "resend:index:WebhookEvent": {
       "type": "string",
       "enum": [
@@ -407,6 +420,52 @@
       },
       "requiredInputs": [
         "name"
+      ]
+    },
+    "resend:index:Topic": {
+      "description": "A Resend broadcast topic used to manage contact subscription preferences.",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "description": "The timestamp when Resend created the topic, as returned by the Resend API `created_at` string in `YYYY-MM-DD HH:MM:SS.ffffff+00` format (for example, `2023-04-08 00:11:13.110779+00`)."
+        },
+        "defaultSubscription": {
+          "$ref": "#/types/resend:index:TopicDefaultSubscription",
+          "description": "The default subscription preference for new contacts, either `opt_in` or `opt_out`. Resend does not allow this value to change after creation, so changes replace the topic.",
+          "replaceOnChanges": true
+        },
+        "description": {
+          "type": "string",
+          "description": "An optional topic description. Non-empty values are sent to Resend on create and update. Because resend-go v4.2.0 omits empty `description` values from update requests, clearing an existing description replaces the topic."
+        },
+        "name": {
+          "type": "string",
+          "description": "The topic name."
+        }
+      },
+      "required": [
+        "name",
+        "defaultSubscription",
+        "createdAt"
+      ],
+      "inputProperties": {
+        "defaultSubscription": {
+          "$ref": "#/types/resend:index:TopicDefaultSubscription",
+          "description": "The default subscription preference for new contacts, either `opt_in` or `opt_out`. Resend does not allow this value to change after creation, so changes replace the topic.",
+          "replaceOnChanges": true
+        },
+        "description": {
+          "type": "string",
+          "description": "An optional topic description. Non-empty values are sent to Resend on create and update. Because resend-go v4.2.0 omits empty `description` values from update requests, clearing an existing description replaces the topic."
+        },
+        "name": {
+          "type": "string",
+          "description": "The topic name."
+        }
+      },
+      "requiredInputs": [
+        "name",
+        "defaultSubscription"
       ]
     },
     "resend:index:Webhook": {
