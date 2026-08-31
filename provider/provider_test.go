@@ -729,6 +729,273 @@ func TestSegmentLifecycle(t *testing.T) {
 	assert.Equal(t, "", read.ID)
 }
 
+type fakeTopics struct {
+	resend.TopicsSvc
+	topics      map[string]*resend.Topic
+	updates     []resend.UpdateTopicRequest
+	nextID      int
+	notFoundErr error
+}
+
+func (f *fakeTopics) CreateWithContext(ctx context.Context, params *resend.CreateTopicRequest) (*resend.CreateTopicResponse, error) {
+	f.nextID++
+	id := fmt.Sprintf("topic_%d", f.nextID)
+	topic := &resend.Topic{
+		Id:                  id,
+		Name:                params.Name,
+		Description:         params.Description,
+		DefaultSubscription: params.DefaultSubscription,
+		CreatedAt:           "2023-04-08 00:11:13.110779+00",
+	}
+	f.topics[id] = topic
+	return &resend.CreateTopicResponse{Id: id}, nil
+}
+
+func (f *fakeTopics) GetWithContext(ctx context.Context, id string) (*resend.Topic, error) {
+	topic, ok := f.topics[id]
+	if !ok {
+		return nil, f.missingError("Topic not found")
+	}
+	return topic, nil
+}
+
+func (f *fakeTopics) UpdateWithContext(ctx context.Context, id string, params *resend.UpdateTopicRequest) (*resend.UpdateTopicResponse, error) {
+	topic, ok := f.topics[id]
+	if !ok {
+		return nil, f.missingError("Topic not found")
+	}
+	f.updates = append(f.updates, *params)
+	if params.Name != "" {
+		topic.Name = params.Name
+	}
+	if params.Description != "" {
+		topic.Description = params.Description
+	}
+	return &resend.UpdateTopicResponse{Id: id}, nil
+}
+
+func (f *fakeTopics) RemoveWithContext(ctx context.Context, id string) (*resend.RemoveTopicResponse, error) {
+	if _, ok := f.topics[id]; !ok {
+		return nil, f.missingError("Topic not found")
+	}
+	delete(f.topics, id)
+	return &resend.RemoveTopicResponse{Object: "topic", Id: id, Deleted: true}, nil
+}
+
+func (f *fakeTopics) missingError(msg string) error {
+	if f.notFoundErr != nil {
+		return f.notFoundErr
+	}
+	return fmt.Errorf("[ERROR]: %s", msg)
+}
+
+func TestTopicImportReadRefreshesInputsAndOutputs(t *testing.T) {
+	fake := &fakeTopics{topics: map[string]*resend.Topic{
+		"topic_1": {
+			Id: "topic_1", Name: "imported", Description: "Imported description",
+			DefaultSubscription: resend.DefaultSubscriptionOptOut, CreatedAt: "2023-04-08 00:11:13.110779+00",
+		},
+	}}
+	s := testServer(t, func(c *resend.Client) { c.Topics = fake })
+
+	read, err := s.Read(p.ReadRequest{Urn: urn("Topic", "imported"), ID: "topic_1"})
+	require.NoError(t, err)
+	assert.Equal(t, "topic_1", read.ID)
+	assert.Equal(t, property.New("imported"), read.Inputs.Get("name"))
+	assert.Equal(t, property.New("opt_out"), read.Inputs.Get("defaultSubscription"))
+	assert.Equal(t, property.New("Imported description"), read.Inputs.Get("description"))
+	assert.Equal(t, property.New("2023-04-08 00:11:13.110779+00"), read.Properties.Get("createdAt"))
+
+	fake.topics["topic_1"].Name = "renamed-remotely"
+	fake.topics["topic_1"].Description = "Refreshed description"
+	read, err = s.Read(p.ReadRequest{
+		Urn: urn("Topic", "refresh"), ID: "topic_1",
+		Properties: property.NewMap(map[string]property.Value{
+			"name":                property.New("imported"),
+			"defaultSubscription": property.New("opt_out"),
+			"description":         property.New("Imported description"),
+			"createdAt":           property.New("2023-04-08 00:11:13.110779+00"),
+		}),
+		Inputs: property.NewMap(map[string]property.Value{
+			"name":                property.New("imported"),
+			"defaultSubscription": property.New("opt_out"),
+			"description":         property.New("Imported description"),
+		}),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, property.New("renamed-remotely"), read.Inputs.Get("name"))
+	assert.Equal(t, property.New("Refreshed description"), read.Inputs.Get("description"))
+	assert.Equal(t, property.New("Refreshed description"), read.Properties.Get("description"))
+}
+
+func TestTopicEmptyRemoteDescriptionCanonicalizesToNil(t *testing.T) {
+	fake := &fakeTopics{topics: map[string]*resend.Topic{
+		"topic_1": {
+			Id: "topic_1", Name: "empty", Description: "",
+			DefaultSubscription: resend.DefaultSubscriptionOptIn, CreatedAt: "2023-04-08 00:11:13.110779+00",
+		},
+	}}
+	s := testServer(t, func(c *resend.Client) { c.Topics = fake })
+
+	read, err := s.Read(p.ReadRequest{
+		Urn: urn("Topic", "empty"), ID: "topic_1",
+		Properties: property.NewMap(map[string]property.Value{
+			"name":                property.New("empty"),
+			"defaultSubscription": property.New("opt_in"),
+			"description":         property.New(""),
+			"createdAt":           property.New("2023-04-08 00:11:13.110779+00"),
+		}),
+		Inputs: property.NewMap(map[string]property.Value{
+			"name":                property.New("empty"),
+			"defaultSubscription": property.New("opt_in"),
+			"description":         property.New(""),
+		}),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "topic_1", read.ID)
+	_, hasInputDescription := read.Inputs.GetOk("description")
+	assert.False(t, hasInputDescription)
+	_, hasOutputDescription := read.Properties.GetOk("description")
+	assert.False(t, hasOutputDescription)
+}
+
+func TestTopicDescriptionDiffSemantics(t *testing.T) {
+	fake := &fakeTopics{topics: map[string]*resend.Topic{}}
+	s := testServer(t, func(c *resend.Client) { c.Topics = fake })
+
+	inputs := property.NewMap(map[string]property.Value{
+		"name":                property.New("Product Updates"),
+		"defaultSubscription": property.New("opt_in"),
+		"description":         property.New("Weekly product updates"),
+	})
+	created, err := s.Create(p.CreateRequest{Urn: urn("Topic", "description"), Properties: inputs})
+	require.NoError(t, err)
+
+	mutatedInputs := property.NewMap(map[string]property.Value{
+		"name":                property.New("Product Updates"),
+		"defaultSubscription": property.New("opt_in"),
+		"description":         property.New("Monthly product updates"),
+	})
+	diff, err := s.Diff(p.DiffRequest{
+		Urn: urn("Topic", "description"), ID: created.ID,
+		State: created.Properties, OldInputs: inputs, Inputs: mutatedInputs,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]p.PropertyDiff{
+		"description": {Kind: p.Update, InputDiff: true},
+	}, diff.DetailedDiff)
+
+	_, err = s.Update(p.UpdateRequest{
+		Urn: urn("Topic", "description"), ID: created.ID,
+		State: created.Properties, OldInputs: inputs, Inputs: mutatedInputs,
+	})
+	require.NoError(t, err)
+	require.Len(t, fake.updates, 1)
+	assert.Equal(t, "Monthly product updates", fake.updates[0].Description)
+
+	clearedInputs := property.NewMap(map[string]property.Value{
+		"name":                property.New("Product Updates"),
+		"defaultSubscription": property.New("opt_in"),
+	})
+	diff, err = s.Diff(p.DiffRequest{
+		Urn: urn("Topic", "description"), ID: created.ID,
+		State: created.Properties, OldInputs: inputs, Inputs: clearedInputs,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]p.PropertyDiff{
+		"description": {Kind: p.UpdateReplace, InputDiff: true},
+	}, diff.DetailedDiff)
+
+	emptyInputs := property.NewMap(map[string]property.Value{
+		"name":                property.New("Product Updates"),
+		"defaultSubscription": property.New("opt_in"),
+		"description":         property.New(""),
+	})
+	diff, err = s.Diff(p.DiffRequest{
+		Urn: urn("Topic", "description"), ID: created.ID,
+		State: created.Properties, OldInputs: inputs, Inputs: emptyInputs,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]p.PropertyDiff{
+		"description": {Kind: p.UpdateReplace, InputDiff: true},
+	}, diff.DetailedDiff)
+}
+
+func TestTopicLifecycle(t *testing.T) {
+	description := "Weekly product updates"
+	fake := &fakeTopics{topics: map[string]*resend.Topic{}}
+	s := testServer(t, func(c *resend.Client) { c.Topics = fake })
+
+	inputs := property.NewMap(map[string]property.Value{
+		"name":                property.New("Product Updates"),
+		"defaultSubscription": property.New("opt_in"),
+		"description":         property.New(description),
+	})
+	created, err := s.Create(p.CreateRequest{Urn: urn("Topic", "test"), Properties: inputs})
+	require.NoError(t, err)
+	assert.Equal(t, "topic_1", created.ID)
+	assert.Equal(t, property.NewMap(map[string]property.Value{
+		"name":                property.New("Product Updates"),
+		"defaultSubscription": property.New("opt_in"),
+		"description":         property.New(description),
+		"createdAt":           property.New("2023-04-08 00:11:13.110779+00"),
+	}), created.Properties)
+
+	updatedInputs := property.NewMap(map[string]property.Value{
+		"name":                property.New("Marketing Updates"),
+		"defaultSubscription": property.New("opt_in"),
+		"description":         property.New("Monthly marketing updates"),
+	})
+	diff, err := s.Diff(p.DiffRequest{
+		Urn: urn("Topic", "test"), ID: created.ID,
+		State: created.Properties, OldInputs: inputs, Inputs: updatedInputs,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]p.PropertyDiff{
+		"name":        {Kind: p.Update, InputDiff: true},
+		"description": {Kind: p.Update, InputDiff: true},
+	}, diff.DetailedDiff)
+
+	replaceInputs := property.NewMap(map[string]property.Value{
+		"name":                property.New("Marketing Updates"),
+		"defaultSubscription": property.New("opt_out"),
+		"description":         property.New("Monthly marketing updates"),
+	})
+	diff, err = s.Diff(p.DiffRequest{
+		Urn: urn("Topic", "test"), ID: created.ID,
+		State: created.Properties, OldInputs: inputs, Inputs: replaceInputs,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, p.UpdateReplace, diff.DetailedDiff["defaultSubscription"].Kind)
+
+	updated, err := s.Update(p.UpdateRequest{
+		Urn: urn("Topic", "test"), ID: created.ID,
+		State: created.Properties, OldInputs: inputs, Inputs: updatedInputs,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Marketing Updates", fake.topics["topic_1"].Name)
+	assert.Equal(t, "Monthly marketing updates", fake.topics["topic_1"].Description)
+	assert.Equal(t, resend.DefaultSubscriptionOptIn, fake.topics["topic_1"].DefaultSubscription)
+	assert.Equal(t, property.New("Marketing Updates"), updated.Properties.Get("name"))
+	assert.Equal(t, property.New("Monthly marketing updates"), updated.Properties.Get("description"))
+
+	read, err := s.Read(p.ReadRequest{
+		Urn: urn("Topic", "test"), ID: created.ID,
+		Properties: updated.Properties, Inputs: updatedInputs,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "topic_1", read.ID)
+	assert.Equal(t, property.New("Marketing Updates"), read.Properties.Get("name"))
+
+	require.NoError(t, s.Delete(p.DeleteRequest{Urn: urn("Topic", "test"), ID: created.ID, Properties: updated.Properties}))
+	assert.Empty(t, fake.topics)
+
+	read, err = s.Read(p.ReadRequest{Urn: urn("Topic", "test"), ID: created.ID, Properties: updated.Properties, Inputs: updatedInputs})
+	require.NoError(t, err)
+	assert.Equal(t, "", read.ID)
+	require.NoError(t, s.Delete(p.DeleteRequest{Urn: urn("Topic", "test"), ID: created.ID, Properties: updated.Properties}))
+}
+
 type fakeWebhooks struct {
 	resend.WebhooksSvc
 	hooks       map[string]*resend.Webhook
@@ -912,6 +1179,19 @@ func TestTypedNotFoundRemovesResourcesAndDeletesIdempotently(t *testing.T) {
 		Properties: property.NewMap(map[string]property.Value{"name": property.New("marketing"), "createdAt": property.New("now")}),
 	}))
 
+	topicServer := testServer(t, func(c *resend.Client) {
+		c.Topics = &fakeTopics{topics: map[string]*resend.Topic{}, notFoundErr: notFound}
+	})
+	read, err = topicServer.Read(p.ReadRequest{Urn: urn("Topic", "missing"), ID: "topic_missing"})
+	require.NoError(t, err)
+	assert.Equal(t, "", read.ID, "Topic should be removed from state when Resend returns a typed 404")
+	require.NoError(t, topicServer.Delete(p.DeleteRequest{
+		Urn: urn("Topic", "missing"), ID: "topic_missing",
+		Properties: property.NewMap(map[string]property.Value{
+			"name": property.New("marketing"), "defaultSubscription": property.New("opt_in"), "createdAt": property.New("now"),
+		}),
+	}))
+
 	webhookServer := testServer(t, func(c *resend.Client) {
 		c.Webhooks = &fakeWebhooks{hooks: map[string]*resend.Webhook{}, notFoundErr: notFound}
 	})
@@ -945,6 +1225,11 @@ func TestReadRemovesMissingResources(t *testing.T) {
 	read, err = segmentServer.Read(p.ReadRequest{Urn: urn("Segment", "missing"), ID: "seg_missing"})
 	require.NoError(t, err)
 	assert.Equal(t, "", read.ID, "Segment should be removed from state when Resend reports not found")
+
+	topicServer := testServer(t, func(c *resend.Client) { c.Topics = &fakeTopics{topics: map[string]*resend.Topic{}} })
+	read, err = topicServer.Read(p.ReadRequest{Urn: urn("Topic", "missing"), ID: "topic_missing"})
+	require.NoError(t, err)
+	assert.Equal(t, "", read.ID, "Topic should be removed from state when Resend reports not found")
 
 	webhookServer := testServer(t, func(c *resend.Client) { c.Webhooks = &fakeWebhooks{hooks: map[string]*resend.Webhook{}} })
 	read, err = webhookServer.Read(p.ReadRequest{Urn: urn("Webhook", "missing"), ID: "wh_missing"})
