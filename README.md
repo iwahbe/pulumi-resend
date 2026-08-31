@@ -14,6 +14,9 @@ A Pulumi provider for managing [Resend](https://resend.com) email infrastructure
 - `resend:index:ApiKey` — an API key. The `token` output is a secret and is only
   available at creation time (the Resend API never returns it again).
 - `resend:index:Segment` — a segment for grouping contacts.
+- `resend:index:ContactProperty` — a custom contact property definition. `key` and
+  `type` changes replace the resource; fallback changes, including clearing, update
+  in place. Supported fallback values are strings or numbers.
 - `resend:index:Topic` — a broadcast topic for contact subscription preferences.
 - `resend:index:Webhook` — an event webhook. The `signingSecret` output is a secret.
 
@@ -116,9 +119,12 @@ checkpoint.
 Import `Domain` and `DomainVerification` resources by Resend domain ID, for example
 `pulumi import resend:index:DomainVerification verified dom_...`. Import `Segment`
 resources by Resend segment ID, for example
-`pulumi import resend:index:Segment marketing seg_...`. Import `Topic` resources by
-Resend topic ID, for example `pulumi import resend:index:Topic marketing topic_...`.
-Importing `DomainVerification` records the current domain status in Pulumi state; it
+`pulumi import resend:index:Segment marketing seg_...`. Import `ContactProperty`
+resources by Resend contact property ID, for example
+`pulumi import resend:index:ContactProperty company b6d24b8e-af0b-4c3c-be0c-359bbd97381e`.
+Import `Topic` resources by Resend topic ID, for example
+`pulumi import resend:index:Topic marketing topic_...`. Importing
+`DomainVerification` records the current domain status in Pulumi state; it
 does not call the verify endpoint or wait for the domain to become verified.
 
 Resend cannot return an API key token after the key is created, and may omit a
