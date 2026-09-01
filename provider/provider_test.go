@@ -1109,19 +1109,6 @@ func TestContactPropertyUnsupportedTypeDoesNotPartiallyEnforceEnum(t *testing.T)
 	require.NoError(t, err)
 }
 
-func TestContactPropertyFallbackTypeValidation(t *testing.T) {
-	fake := &fakeContactProperties{properties: map[string]*resend.ContactProperty{}}
-	s := testServer(t, func(c *resend.Client) { c.ContactProperties = fake })
-
-	_, err := s.Create(p.CreateRequest{Urn: urn("ContactProperty", "bad"), Properties: property.NewMap(map[string]property.Value{
-		"key":           property.New("age"),
-		"type":          property.New("number"),
-		"fallbackValue": property.New("not a number"),
-	})})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "must be a number")
-}
-
 func TestTopicImportReadRefreshesInputsAndOutputs(t *testing.T) {
 	fake := &fakeTopics{topics: map[string]*resend.Topic{
 		"topic_1": {

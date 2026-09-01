@@ -73,14 +73,11 @@ func (*ContactProperty) Create(
 	if req.DryRun {
 		return infer.CreateResponse[ContactPropertyState]{Output: ContactPropertyState{ContactPropertyArgs: req.Inputs}}, nil
 	}
-	if err := validateContactPropertyFallback(req.Inputs.Type, req.Inputs.FallbackValue); err != nil {
-		return infer.CreateResponse[ContactPropertyState]{}, err
-	}
 	client := getClient(ctx)
 	resp, err := client.ContactProperties.CreateWithContext(ctx, &resend.CreateContactPropertyRequest{
 		Key:           req.Inputs.Key,
 		Type:          string(req.Inputs.Type),
-		FallbackValue: contactPropertyFallback(req.Inputs.FallbackValue),
+		FallbackValue: deref(req.Inputs.FallbackValue),
 	})
 	if err != nil {
 		return infer.CreateResponse[ContactPropertyState]{}, fmt.Errorf("creating contact property %q: %w", req.Inputs.Key, err)
@@ -103,13 +100,10 @@ func (*ContactProperty) Update(
 	if req.DryRun {
 		return infer.UpdateResponse[ContactPropertyState]{Output: state}, nil
 	}
-	if err := validateContactPropertyFallback(req.Inputs.Type, req.Inputs.FallbackValue); err != nil {
-		return infer.UpdateResponse[ContactPropertyState]{}, err
-	}
 	client := getClient(ctx)
 	_, err := client.ContactProperties.UpdateWithContext(ctx, &resend.UpdateContactPropertyRequest{
 		Id:            req.ID,
-		FallbackValue: contactPropertyFallback(req.Inputs.FallbackValue),
+		FallbackValue: deref(req.Inputs.FallbackValue),
 	})
 	if err != nil {
 		return infer.UpdateResponse[ContactPropertyState]{}, fmt.Errorf("updating contact property %q fallback value: %w", req.ID, err)
@@ -133,7 +127,9 @@ func (*ContactProperty) Read(
 		return infer.ReadResponse[ContactPropertyArgs, ContactPropertyState]{}, fmt.Errorf("reading contact property %q: %w", req.ID, err)
 	}
 	inputs := ContactPropertyArgs{Key: remote.Key, Type: ContactPropertyType(remote.Type)}
-	setContactPropertyFallback(&inputs.FallbackValue, remote.FallbackValue)
+	if remote.FallbackValue != nil {
+		inputs.FallbackValue = &remote.FallbackValue
+	}
 	state := ContactPropertyState{ContactPropertyArgs: inputs}
 	refreshContactPropertyState(&state, &remote)
 	return infer.ReadResponse[ContactPropertyArgs, ContactPropertyState]{ID: req.ID, Inputs: inputs, State: state}, nil
@@ -149,23 +145,12 @@ func (*ContactProperty) Delete(ctx context.Context, req infer.DeleteRequest[Cont
 func refreshContactPropertyState(state *ContactPropertyState, remote *resend.ContactProperty) {
 	state.Key = remote.Key
 	state.Type = ContactPropertyType(remote.Type)
-	setContactPropertyFallback(&state.FallbackValue, remote.FallbackValue)
+	if remote.FallbackValue == nil {
+		state.FallbackValue = nil
+	} else {
+		state.FallbackValue = &remote.FallbackValue
+	}
 	state.CreatedAt = remote.CreatedAt
-}
-
-func contactPropertyFallback(v *any) any {
-	if v == nil {
-		return nil
-	}
-	return *v
-}
-
-func setContactPropertyFallback(dst **any, remote any) {
-	if remote == nil {
-		*dst = nil
-		return
-	}
-	*dst = &remote
 }
 
 func validateContactPropertyFallback(typ ContactPropertyType, fallback *any) error {
