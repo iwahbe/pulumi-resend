@@ -15,6 +15,19 @@ export const ApiKeyPermission = {
 
 export type ApiKeyPermission = (typeof ApiKeyPermission)[keyof typeof ApiKeyPermission];
 
+export const ContactPropertyType = {
+    /**
+     * A string contact property.
+     */
+    String: "string",
+    /**
+     * A numeric contact property.
+     */
+    Number: "number",
+} as const;
+
+export type ContactPropertyType = (typeof ContactPropertyType)[keyof typeof ContactPropertyType];
+
 export const DomainCapabilityStatus = {
     Enabled: "enabled",
     Disabled: "disabled",

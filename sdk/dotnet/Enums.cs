@@ -42,6 +42,40 @@ namespace Iwahbe.Resend
     }
 
     [EnumType]
+    public readonly struct ContactPropertyType : IEquatable<ContactPropertyType>
+    {
+        private readonly string _value;
+
+        private ContactPropertyType(string value)
+        {
+            _value = value ?? throw new ArgumentNullException(nameof(value));
+        }
+
+        /// <summary>
+        /// A string contact property.
+        /// </summary>
+        public static ContactPropertyType @String { get; } = new ContactPropertyType("string");
+        /// <summary>
+        /// A numeric contact property.
+        /// </summary>
+        public static ContactPropertyType Number { get; } = new ContactPropertyType("number");
+
+        public static bool operator ==(ContactPropertyType left, ContactPropertyType right) => left.Equals(right);
+        public static bool operator !=(ContactPropertyType left, ContactPropertyType right) => !left.Equals(right);
+
+        public static explicit operator string(ContactPropertyType value) => value._value;
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public override bool Equals(object? obj) => obj is ContactPropertyType other && Equals(other);
+        public bool Equals(ContactPropertyType other) => string.Equals(_value, other._value, StringComparison.Ordinal);
+
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public override int GetHashCode() => _value?.GetHashCode() ?? 0;
+
+        public override string ToString() => _value;
+    }
+
+    [EnumType]
     public readonly struct DomainCapabilityStatus : IEquatable<DomainCapabilityStatus>
     {
         private readonly string _value;

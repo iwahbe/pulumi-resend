@@ -177,6 +177,173 @@ func (in *apiKeyPermissionPtr) ToApiKeyPermissionPtrOutputWithContext(ctx contex
 	return pulumi.ToOutputWithContext(ctx, in).(ApiKeyPermissionPtrOutput)
 }
 
+type ContactPropertyType string
+
+const (
+	// A string contact property.
+	ContactPropertyTypeString = ContactPropertyType("string")
+	// A numeric contact property.
+	ContactPropertyTypeNumber = ContactPropertyType("number")
+)
+
+func (ContactPropertyType) ElementType() reflect.Type {
+	return reflect.TypeOf((*ContactPropertyType)(nil)).Elem()
+}
+
+func (e ContactPropertyType) ToContactPropertyTypeOutput() ContactPropertyTypeOutput {
+	return pulumi.ToOutput(e).(ContactPropertyTypeOutput)
+}
+
+func (e ContactPropertyType) ToContactPropertyTypeOutputWithContext(ctx context.Context) ContactPropertyTypeOutput {
+	return pulumi.ToOutputWithContext(ctx, e).(ContactPropertyTypeOutput)
+}
+
+func (e ContactPropertyType) ToContactPropertyTypePtrOutput() ContactPropertyTypePtrOutput {
+	return e.ToContactPropertyTypePtrOutputWithContext(context.Background())
+}
+
+func (e ContactPropertyType) ToContactPropertyTypePtrOutputWithContext(ctx context.Context) ContactPropertyTypePtrOutput {
+	return ContactPropertyType(e).ToContactPropertyTypeOutputWithContext(ctx).ToContactPropertyTypePtrOutputWithContext(ctx)
+}
+
+func (e ContactPropertyType) ToStringOutput() pulumi.StringOutput {
+	return pulumi.ToOutput(pulumi.String(e)).(pulumi.StringOutput)
+}
+
+func (e ContactPropertyType) ToStringOutputWithContext(ctx context.Context) pulumi.StringOutput {
+	return pulumi.ToOutputWithContext(ctx, pulumi.String(e)).(pulumi.StringOutput)
+}
+
+func (e ContactPropertyType) ToStringPtrOutput() pulumi.StringPtrOutput {
+	return pulumi.String(e).ToStringPtrOutputWithContext(context.Background())
+}
+
+func (e ContactPropertyType) ToStringPtrOutputWithContext(ctx context.Context) pulumi.StringPtrOutput {
+	return pulumi.String(e).ToStringOutputWithContext(ctx).ToStringPtrOutputWithContext(ctx)
+}
+
+type ContactPropertyTypeOutput struct{ *pulumi.OutputState }
+
+func (ContactPropertyTypeOutput) ElementType() reflect.Type {
+	return reflect.TypeOf((*ContactPropertyType)(nil)).Elem()
+}
+
+func (o ContactPropertyTypeOutput) ToContactPropertyTypeOutput() ContactPropertyTypeOutput {
+	return o
+}
+
+func (o ContactPropertyTypeOutput) ToContactPropertyTypeOutputWithContext(ctx context.Context) ContactPropertyTypeOutput {
+	return o
+}
+
+func (o ContactPropertyTypeOutput) ToContactPropertyTypePtrOutput() ContactPropertyTypePtrOutput {
+	return o.ToContactPropertyTypePtrOutputWithContext(context.Background())
+}
+
+func (o ContactPropertyTypeOutput) ToContactPropertyTypePtrOutputWithContext(ctx context.Context) ContactPropertyTypePtrOutput {
+	return o.ApplyTWithContext(ctx, func(_ context.Context, v ContactPropertyType) *ContactPropertyType {
+		return &v
+	}).(ContactPropertyTypePtrOutput)
+}
+
+func (o ContactPropertyTypeOutput) ToStringOutput() pulumi.StringOutput {
+	return o.ToStringOutputWithContext(context.Background())
+}
+
+func (o ContactPropertyTypeOutput) ToStringOutputWithContext(ctx context.Context) pulumi.StringOutput {
+	return o.ApplyTWithContext(ctx, func(_ context.Context, e ContactPropertyType) string {
+		return string(e)
+	}).(pulumi.StringOutput)
+}
+
+func (o ContactPropertyTypeOutput) ToStringPtrOutput() pulumi.StringPtrOutput {
+	return o.ToStringPtrOutputWithContext(context.Background())
+}
+
+func (o ContactPropertyTypeOutput) ToStringPtrOutputWithContext(ctx context.Context) pulumi.StringPtrOutput {
+	return o.ApplyTWithContext(ctx, func(_ context.Context, e ContactPropertyType) *string {
+		v := string(e)
+		return &v
+	}).(pulumi.StringPtrOutput)
+}
+
+type ContactPropertyTypePtrOutput struct{ *pulumi.OutputState }
+
+func (ContactPropertyTypePtrOutput) ElementType() reflect.Type {
+	return reflect.TypeOf((**ContactPropertyType)(nil)).Elem()
+}
+
+func (o ContactPropertyTypePtrOutput) ToContactPropertyTypePtrOutput() ContactPropertyTypePtrOutput {
+	return o
+}
+
+func (o ContactPropertyTypePtrOutput) ToContactPropertyTypePtrOutputWithContext(ctx context.Context) ContactPropertyTypePtrOutput {
+	return o
+}
+
+func (o ContactPropertyTypePtrOutput) Elem() ContactPropertyTypeOutput {
+	return o.ApplyT(func(v *ContactPropertyType) ContactPropertyType {
+		if v != nil {
+			return *v
+		}
+		var ret ContactPropertyType
+		return ret
+	}).(ContactPropertyTypeOutput)
+}
+
+func (o ContactPropertyTypePtrOutput) ToStringPtrOutput() pulumi.StringPtrOutput {
+	return o.ToStringPtrOutputWithContext(context.Background())
+}
+
+func (o ContactPropertyTypePtrOutput) ToStringPtrOutputWithContext(ctx context.Context) pulumi.StringPtrOutput {
+	return o.ApplyTWithContext(ctx, func(_ context.Context, e *ContactPropertyType) *string {
+		if e == nil {
+			return nil
+		}
+		v := string(*e)
+		return &v
+	}).(pulumi.StringPtrOutput)
+}
+
+// ContactPropertyTypeInput is an input type that accepts values of the ContactPropertyType enum
+// A concrete instance of `ContactPropertyTypeInput` can be one of the following:
+//
+//	ContactPropertyTypeString
+//	ContactPropertyTypeNumber
+type ContactPropertyTypeInput interface {
+	pulumi.Input
+
+	ToContactPropertyTypeOutput() ContactPropertyTypeOutput
+	ToContactPropertyTypeOutputWithContext(context.Context) ContactPropertyTypeOutput
+}
+
+var contactPropertyTypePtrType = reflect.TypeOf((**ContactPropertyType)(nil)).Elem()
+
+type ContactPropertyTypePtrInput interface {
+	pulumi.Input
+
+	ToContactPropertyTypePtrOutput() ContactPropertyTypePtrOutput
+	ToContactPropertyTypePtrOutputWithContext(context.Context) ContactPropertyTypePtrOutput
+}
+
+type contactPropertyTypePtr string
+
+func ContactPropertyTypePtr(v string) ContactPropertyTypePtrInput {
+	return (*contactPropertyTypePtr)(&v)
+}
+
+func (*contactPropertyTypePtr) ElementType() reflect.Type {
+	return contactPropertyTypePtrType
+}
+
+func (in *contactPropertyTypePtr) ToContactPropertyTypePtrOutput() ContactPropertyTypePtrOutput {
+	return pulumi.ToOutput(in).(ContactPropertyTypePtrOutput)
+}
+
+func (in *contactPropertyTypePtr) ToContactPropertyTypePtrOutputWithContext(ctx context.Context) ContactPropertyTypePtrOutput {
+	return pulumi.ToOutputWithContext(ctx, in).(ContactPropertyTypePtrOutput)
+}
+
 type DomainCapabilityStatus string
 
 const (
@@ -1086,6 +1253,8 @@ func (o WebhookEventArrayOutput) Index(i pulumi.IntInput) WebhookEventOutput {
 func init() {
 	pulumi.RegisterInputType(reflect.TypeOf((*ApiKeyPermissionInput)(nil)).Elem(), ApiKeyPermission("full_access"))
 	pulumi.RegisterInputType(reflect.TypeOf((*ApiKeyPermissionPtrInput)(nil)).Elem(), ApiKeyPermission("full_access"))
+	pulumi.RegisterInputType(reflect.TypeOf((*ContactPropertyTypeInput)(nil)).Elem(), ContactPropertyType("string"))
+	pulumi.RegisterInputType(reflect.TypeOf((*ContactPropertyTypePtrInput)(nil)).Elem(), ContactPropertyType("string"))
 	pulumi.RegisterInputType(reflect.TypeOf((*DomainCapabilityStatusInput)(nil)).Elem(), DomainCapabilityStatus("enabled"))
 	pulumi.RegisterInputType(reflect.TypeOf((*DomainCapabilityStatusPtrInput)(nil)).Elem(), DomainCapabilityStatus("enabled"))
 	pulumi.RegisterInputType(reflect.TypeOf((*DomainRegionInput)(nil)).Elem(), DomainRegion("us-east-1"))
@@ -1099,6 +1268,8 @@ func init() {
 	pulumi.RegisterInputType(reflect.TypeOf((*WebhookEventArrayInput)(nil)).Elem(), WebhookEventArray{})
 	pulumi.RegisterOutputType(ApiKeyPermissionOutput{})
 	pulumi.RegisterOutputType(ApiKeyPermissionPtrOutput{})
+	pulumi.RegisterOutputType(ContactPropertyTypeOutput{})
+	pulumi.RegisterOutputType(ContactPropertyTypePtrOutput{})
 	pulumi.RegisterOutputType(DomainCapabilityStatusOutput{})
 	pulumi.RegisterOutputType(DomainCapabilityStatusPtrOutput{})
 	pulumi.RegisterOutputType(DomainRegionOutput{})

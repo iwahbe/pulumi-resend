@@ -54,6 +54,19 @@
         }
       ]
     },
+    "resend:index:ContactPropertyType": {
+      "type": "string",
+      "enum": [
+        {
+          "description": "A string contact property.",
+          "value": "string"
+        },
+        {
+          "description": "A numeric contact property.",
+          "value": "number"
+        }
+      ]
+    },
     "resend:index:DomainCapabilities": {
       "properties": {
         "receiving": {
@@ -266,6 +279,54 @@
       },
       "requiredInputs": [
         "name"
+      ]
+    },
+    "resend:index:ContactProperty": {
+      "description": "A Resend custom contact property definition.",
+      "properties": {
+        "createdAt": {
+          "type": "string",
+          "description": "The timestamp when Resend created the contact property, as returned by the Resend API `created_at` string."
+        },
+        "fallbackValue": {
+          "$ref": "pulumi.json#/Any",
+          "description": "Optional fallback value used when a contact does not have this property set. Values must match `type` (`string` or `number`). Fallback changes, including clearing a previously non-null fallback, update in place."
+        },
+        "key": {
+          "type": "string",
+          "description": "The contact property key. Resend allows up to 50 alphanumeric or underscore characters. The key cannot be changed after creation, so changes replace the resource.",
+          "replaceOnChanges": true
+        },
+        "type": {
+          "$ref": "#/types/resend:index:ContactPropertyType",
+          "description": "The contact property type, either `string` or `number`. The type cannot be changed after creation, so changes replace the resource.",
+          "replaceOnChanges": true
+        }
+      },
+      "required": [
+        "key",
+        "type",
+        "createdAt"
+      ],
+      "inputProperties": {
+        "fallbackValue": {
+          "$ref": "pulumi.json#/Any",
+          "description": "Optional fallback value used when a contact does not have this property set. Values must match `type` (`string` or `number`). Fallback changes, including clearing a previously non-null fallback, update in place."
+        },
+        "key": {
+          "type": "string",
+          "description": "The contact property key. Resend allows up to 50 alphanumeric or underscore characters. The key cannot be changed after creation, so changes replace the resource.",
+          "replaceOnChanges": true
+        },
+        "type": {
+          "$ref": "#/types/resend:index:ContactPropertyType",
+          "description": "The contact property type, either `string` or `number`. The type cannot be changed after creation, so changes replace the resource.",
+          "replaceOnChanges": true
+        }
+      },
+      "requiredInputs": [
+        "key",
+        "type"
       ]
     },
     "resend:index:Domain": {

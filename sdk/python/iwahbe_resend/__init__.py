@@ -8,6 +8,7 @@ import typing
 # Export this package's modules as members:
 from ._enums import *
 from .api_key import *
+from .contact_property import *
 from .domain import *
 from .domain_verification import *
 from .provider import *
@@ -33,6 +34,7 @@ _utilities.register(
   "fqn": "iwahbe_resend",
   "classes": {
    "resend:index:ApiKey": "ApiKey",
+   "resend:index:ContactProperty": "ContactProperty",
    "resend:index:Domain": "Domain",
    "resend:index:DomainVerification": "DomainVerification",
    "resend:index:Segment": "Segment",

@@ -8,6 +8,7 @@ from enum import Enum
 
 __all__ = [
     'ApiKeyPermission',
+    'ContactPropertyType',
     'DomainCapabilityStatus',
     'DomainRegion',
     'DomainTLS',
@@ -25,6 +26,18 @@ class ApiKeyPermission(_builtins.str, Enum):
     SENDING_ACCESS = "sending_access"
     """
     Permission to send emails.
+    """
+
+
+@pulumi.type_token("resend:index:ContactPropertyType")
+class ContactPropertyType(_builtins.str, Enum):
+    STRING = "string"
+    """
+    A string contact property.
+    """
+    NUMBER = "number"
+    """
+    A numeric contact property.
     """
 
 

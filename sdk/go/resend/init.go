@@ -23,6 +23,8 @@ func (m *module) Construct(ctx *pulumi.Context, name, typ, urn string) (r pulumi
 	switch typ {
 	case "resend:index:ApiKey":
 		r = &ApiKey{}
+	case "resend:index:ContactProperty":
+		r = &ContactProperty{}
 	case "resend:index:Domain":
 		r = &Domain{}
 	case "resend:index:DomainVerification":
