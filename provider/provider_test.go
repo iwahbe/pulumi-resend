@@ -37,6 +37,10 @@ func testServer(t *testing.T, setup func(*resend.Client)) integration.Server {
 	return s
 }
 
+func isReplacementDiff(diff p.PropertyDiff) bool {
+	return diff.Kind == p.AddReplace || diff.Kind == p.DeleteReplace || diff.Kind == p.UpdateReplace
+}
+
 func urn(typ, name string) presource.URN {
 	return presource.NewURN("stack", "proj", "", tokens.Type("resend:index:"+typ), name)
 }
@@ -787,6 +791,322 @@ func (f *fakeTopics) missingError(msg string) error {
 		return f.notFoundErr
 	}
 	return fmt.Errorf("[ERROR]: %s", msg)
+}
+
+type fakeContactProperties struct {
+	resend.ContactPropertiesSvc
+	properties  map[string]*resend.ContactProperty
+	updates     []resend.UpdateContactPropertyRequest
+	nextID      int
+	notFoundErr error
+}
+
+func (f *fakeContactProperties) CreateWithContext(ctx context.Context, params *resend.CreateContactPropertyRequest) (resend.CreateContactPropertyResponse, error) {
+	f.nextID++
+	id := fmt.Sprintf("prop_%d", f.nextID)
+	fallback := canonicalContactPropertyFallback(params.FallbackValue)
+	property := &resend.ContactProperty{
+		Id:            id,
+		Key:           params.Key,
+		Object:        "contact_property",
+		CreatedAt:     "2026-04-08 00:11:13.110779+00",
+		Type:          params.Type,
+		FallbackValue: fallback,
+	}
+	f.properties[id] = property
+	return resend.CreateContactPropertyResponse{Id: id, Object: "contact_property"}, nil
+}
+
+func (f *fakeContactProperties) GetWithContext(ctx context.Context, id string) (resend.ContactProperty, error) {
+	property, ok := f.properties[id]
+	if !ok {
+		return resend.ContactProperty{}, f.missingError("Contact property not found")
+	}
+	return *property, nil
+}
+
+func (f *fakeContactProperties) UpdateWithContext(ctx context.Context, params *resend.UpdateContactPropertyRequest) (resend.UpdateContactPropertyResponse, error) {
+	property, ok := f.properties[params.Id]
+	if !ok {
+		return resend.UpdateContactPropertyResponse{}, f.missingError("Contact property not found")
+	}
+	f.updates = append(f.updates, *params)
+	property.FallbackValue = canonicalContactPropertyFallback(params.FallbackValue)
+	return resend.UpdateContactPropertyResponse{Id: params.Id, Object: "contact_property"}, nil
+}
+
+func (f *fakeContactProperties) RemoveWithContext(ctx context.Context, id string) (resend.RemoveContactPropertyResponse, error) {
+	if _, ok := f.properties[id]; !ok {
+		return resend.RemoveContactPropertyResponse{}, f.missingError("Contact property not found")
+	}
+	delete(f.properties, id)
+	return resend.RemoveContactPropertyResponse{Object: "contact_property", Id: id, Deleted: true}, nil
+}
+
+func (f *fakeContactProperties) missingError(msg string) error {
+	if f.notFoundErr != nil {
+		return f.notFoundErr
+	}
+	return fmt.Errorf("[ERROR]: %s", msg)
+}
+
+func canonicalContactPropertyFallback(v any) any {
+	switch n := v.(type) {
+	case int:
+		return float64(n)
+	case int64:
+		return float64(n)
+	case float32:
+		return float64(n)
+	default:
+		return v
+	}
+}
+
+func TestContactPropertyLifecycleAndFallbackDiffSemantics(t *testing.T) {
+	fake := &fakeContactProperties{properties: map[string]*resend.ContactProperty{}}
+	s := testServer(t, func(c *resend.Client) { c.ContactProperties = fake })
+
+	inputs := property.NewMap(map[string]property.Value{
+		"key":           property.New("company_name"),
+		"type":          property.New("string"),
+		"fallbackValue": property.New("Acme Corp"),
+	})
+	created, err := s.Create(p.CreateRequest{Urn: urn("ContactProperty", "company"), Properties: inputs})
+	require.NoError(t, err)
+	assert.Equal(t, "prop_1", created.ID)
+	assert.Equal(t, property.NewMap(map[string]property.Value{
+		"key":           property.New("company_name"),
+		"type":          property.New("string"),
+		"fallbackValue": property.New("Acme Corp"),
+		"createdAt":     property.New("2026-04-08 00:11:13.110779+00"),
+	}), created.Properties)
+
+	updatedInputs := property.NewMap(map[string]property.Value{
+		"key":           property.New("company_name"),
+		"type":          property.New("string"),
+		"fallbackValue": property.New("Example Company"),
+	})
+	diff, err := s.Diff(p.DiffRequest{Urn: urn("ContactProperty", "company"), ID: created.ID, State: created.Properties, OldInputs: inputs, Inputs: updatedInputs})
+	require.NoError(t, err)
+	assert.True(t, diff.HasChanges)
+	assert.False(t, diff.DeleteBeforeReplace)
+	require.Contains(t, diff.DetailedDiff, "fallbackValue")
+	assert.Equal(t, p.Update, diff.DetailedDiff["fallbackValue"].Kind)
+	assert.False(t, isReplacementDiff(diff.DetailedDiff["fallbackValue"]))
+
+	updated, err := s.Update(p.UpdateRequest{Urn: urn("ContactProperty", "company"), ID: created.ID, State: created.Properties, OldInputs: inputs, Inputs: updatedInputs})
+	require.NoError(t, err)
+	require.Len(t, fake.updates, 1)
+	assert.Equal(t, "Example Company", fake.updates[0].FallbackValue)
+	assert.Equal(t, property.New("Example Company"), updated.Properties.Get("fallbackValue"))
+
+	clearInputs := property.NewMap(map[string]property.Value{
+		"key":  property.New("company_name"),
+		"type": property.New("string"),
+	})
+	diff, err = s.Diff(p.DiffRequest{Urn: urn("ContactProperty", "company"), ID: created.ID, State: updated.Properties, OldInputs: updatedInputs, Inputs: clearInputs})
+	require.NoError(t, err)
+	assert.True(t, diff.HasChanges)
+	assert.False(t, diff.DeleteBeforeReplace)
+	require.Contains(t, diff.DetailedDiff, "fallbackValue")
+	assert.Equal(t, p.Delete, diff.DetailedDiff["fallbackValue"].Kind)
+	assert.False(t, isReplacementDiff(diff.DetailedDiff["fallbackValue"]))
+
+	cleared, err := s.Update(p.UpdateRequest{Urn: urn("ContactProperty", "company"), ID: created.ID, State: updated.Properties, OldInputs: updatedInputs, Inputs: clearInputs})
+	require.NoError(t, err)
+	require.Len(t, fake.updates, 2)
+	assert.Nil(t, fake.updates[1].FallbackValue)
+	_, hasFallback := cleared.Properties.GetOk("fallbackValue")
+	assert.False(t, hasFallback)
+	assert.Nil(t, fake.properties[created.ID].FallbackValue)
+
+	replaceTypeInputs := property.NewMap(map[string]property.Value{
+		"key":           property.New("company_name"),
+		"type":          property.New("number"),
+		"fallbackValue": property.New(1.0),
+	})
+	diff, err = s.Diff(p.DiffRequest{Urn: urn("ContactProperty", "company"), ID: created.ID, State: cleared.Properties, OldInputs: clearInputs, Inputs: replaceTypeInputs})
+	require.NoError(t, err)
+	assert.True(t, diff.HasChanges)
+	assert.False(t, diff.DeleteBeforeReplace)
+	require.Contains(t, diff.DetailedDiff, "type")
+	assert.Equal(t, p.UpdateReplace, diff.DetailedDiff["type"].Kind)
+
+	replaceKeyInputs := property.NewMap(map[string]property.Value{
+		"key":  property.New("company_legal_name"),
+		"type": property.New("string"),
+	})
+	diff, err = s.Diff(p.DiffRequest{Urn: urn("ContactProperty", "company"), ID: created.ID, State: cleared.Properties, OldInputs: clearInputs, Inputs: replaceKeyInputs})
+	require.NoError(t, err)
+	assert.True(t, diff.HasChanges)
+	assert.False(t, diff.DeleteBeforeReplace)
+	require.Contains(t, diff.DetailedDiff, "key")
+	assert.Equal(t, p.UpdateReplace, diff.DetailedDiff["key"].Kind)
+
+	require.NoError(t, s.Delete(p.DeleteRequest{Urn: urn("ContactProperty", "company"), ID: created.ID, Properties: cleared.Properties}))
+	assert.Empty(t, fake.properties)
+	require.NoError(t, s.Delete(p.DeleteRequest{Urn: urn("ContactProperty", "company"), ID: created.ID, Properties: updated.Properties}))
+}
+
+func TestContactPropertyNumberCanonicalizationImportAndNotFound(t *testing.T) {
+	fake := &fakeContactProperties{properties: map[string]*resend.ContactProperty{
+		"prop_1": {Id: "prop_1", Key: "age", Object: "contact_property", CreatedAt: "2026-04-08 00:11:13.110779+00", Type: "number", FallbackValue: float64(0)},
+	}}
+	s := testServer(t, func(c *resend.Client) { c.ContactProperties = fake })
+
+	read, err := s.Read(p.ReadRequest{Urn: urn("ContactProperty", "age"), ID: "prop_1"})
+	require.NoError(t, err)
+	assert.Equal(t, "prop_1", read.ID)
+	assert.Equal(t, property.New("age"), read.Inputs.Get("key"))
+	assert.Equal(t, property.New("number"), read.Inputs.Get("type"))
+	assert.Equal(t, property.New(0.0), read.Inputs.Get("fallbackValue"))
+
+	inputs := property.NewMap(map[string]property.Value{"key": property.New("age"), "type": property.New("number"), "fallbackValue": property.New(0.0)})
+	diff, err := s.Diff(p.DiffRequest{Urn: urn("ContactProperty", "age"), ID: "prop_1", State: read.Properties, OldInputs: read.Inputs, Inputs: inputs})
+	require.NoError(t, err)
+	assert.False(t, diff.HasChanges)
+
+	delete(fake.properties, "prop_1")
+	read, err = s.Read(p.ReadRequest{Urn: urn("ContactProperty", "age"), ID: "prop_1", Properties: read.Properties, Inputs: read.Inputs})
+	require.NoError(t, err)
+	assert.Empty(t, read.ID)
+}
+
+func TestContactPropertyRawDiffSemantics(t *testing.T) {
+	fake := &fakeContactProperties{properties: map[string]*resend.ContactProperty{}}
+	s := testServer(t, func(c *resend.Client) { c.ContactProperties = fake })
+
+	base := property.NewMap(map[string]property.Value{
+		"key":       property.New("company_name"),
+		"type":      property.New("string"),
+		"createdAt": property.New("2026-04-08 00:11:13.110779+00"),
+	})
+	withFallback := base.Set("fallbackValue", property.New("Acme Corp"))
+
+	assertReplacement := func(name string, oldInputs, inputs property.Map, prop string) {
+		t.Helper()
+		diff, err := s.Diff(p.DiffRequest{Urn: urn("ContactProperty", name), ID: "prop_1", State: oldInputs, OldInputs: oldInputs, Inputs: inputs})
+		require.NoError(t, err)
+		assert.True(t, diff.HasChanges)
+		assert.False(t, diff.DeleteBeforeReplace)
+		require.Contains(t, diff.DetailedDiff, prop)
+		assert.True(t, isReplacementDiff(diff.DetailedDiff[prop]))
+	}
+	assertInPlace := func(name string, oldInputs, inputs property.Map, prop string) p.DiffKind {
+		t.Helper()
+		diff, err := s.Diff(p.DiffRequest{Urn: urn("ContactProperty", name), ID: "prop_1", State: oldInputs, OldInputs: oldInputs, Inputs: inputs})
+		require.NoError(t, err)
+		assert.True(t, diff.HasChanges)
+		assert.False(t, diff.DeleteBeforeReplace)
+		require.Contains(t, diff.DetailedDiff, prop)
+		assert.False(t, isReplacementDiff(diff.DetailedDiff[prop]))
+		return diff.DetailedDiff[prop].Kind
+	}
+
+	assertReplacement("key-change", base, base.Set("key", property.New("company_legal_name")), "key")
+	assertReplacement("type-change", base, base.Set("type", property.New("number")), "type")
+	assertReplacement("empty-key", base, base.Set("key", property.New("")), "key")
+	assertReplacement("empty-type", base, base.Set("type", property.New("")), "type")
+
+	assertReplacement("unknown-key", base, base.Set("key", property.New(property.Computed)), "key")
+	assertReplacement("unknown-type", base, base.Set("type", property.New(property.Computed)), "type")
+
+	assertInPlace("unknown-fallback-from-absent", base, base.Set("fallbackValue", property.New(property.Computed)), "fallbackValue")
+	assertInPlace("unknown-fallback-from-non-null", withFallback, withFallback.Set("fallbackValue", property.New(property.Computed)), "fallbackValue")
+	assertInPlace("unknown-fallback-from-zero", base.Set("fallbackValue", property.New(0.0)), base.Set("fallbackValue", property.New(property.Computed)), "fallbackValue")
+	assertInPlace("unknown-fallback-from-empty-string", base.Set("fallbackValue", property.New("")), base.Set("fallbackValue", property.New(property.Computed)), "fallbackValue")
+	assert.Equal(t, p.Delete, assertInPlace("fallback-omission", withFallback, base, "fallbackValue"))
+	assert.Equal(t, p.Update, assertInPlace("fallback-edit", withFallback, withFallback.Set("fallbackValue", property.New("Example Company")), "fallbackValue"))
+}
+
+func TestContactPropertyCheckFallbackValidation(t *testing.T) {
+	s := testServer(t, func(c *resend.Client) {
+		c.ContactProperties = &fakeContactProperties{properties: map[string]*resend.ContactProperty{}}
+	})
+
+	check := func(inputs property.Map) p.CheckResponse {
+		t.Helper()
+		resp, err := s.Check(p.CheckRequest{Urn: urn("ContactProperty", "check"), Inputs: inputs})
+		require.NoError(t, err)
+		return resp
+	}
+	known := func(typ string, fallback property.Value) property.Map {
+		return property.NewMap(map[string]property.Value{
+			"key":           property.New("value"),
+			"type":          property.New(typ),
+			"fallbackValue": fallback,
+		})
+	}
+
+	for _, tc := range []struct {
+		name   string
+		inputs property.Map
+		reason string
+	}{
+		{"number-string", known("number", property.New("not a number")), `contact property fallbackValue for type "number" must be a number`},
+		{"string-number", known("string", property.New(1.0)), `contact property fallbackValue for type "string" must be a string`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := check(tc.inputs)
+			assert.Equal(t, tc.inputs, resp.Inputs)
+			assert.Equal(t, []p.CheckFailure{{Property: "fallbackValue", Reason: tc.reason}}, resp.Failures)
+		})
+	}
+
+	for _, inputs := range []property.Map{
+		known("string", property.New("value")),
+		known("number", property.New(1.0)),
+		known("custom", property.New("value")),
+		known("string", property.New(property.Computed)),
+		known("number", property.New(property.Computed)).Set("type", property.New(property.Computed)),
+	} {
+		resp := check(inputs)
+		assert.Equal(t, inputs, resp.Inputs)
+		assert.Empty(t, resp.Failures)
+	}
+}
+
+func TestContactPropertyUnknownFallbackPreviewAccepted(t *testing.T) {
+	fake := &fakeContactProperties{properties: map[string]*resend.ContactProperty{}}
+	s := testServer(t, func(c *resend.Client) { c.ContactProperties = fake })
+
+	inputs := property.NewMap(map[string]property.Value{
+		"key":           property.New("company_name"),
+		"type":          property.New("string"),
+		"fallbackValue": property.New(property.Computed),
+	})
+	created, err := s.Create(p.CreateRequest{Urn: urn("ContactProperty", "preview"), Properties: inputs, DryRun: true})
+	require.NoError(t, err)
+	assert.Equal(t, inputs, created.Properties.Delete("createdAt"))
+	assert.Empty(t, fake.properties)
+
+	updated, err := s.Update(p.UpdateRequest{
+		Urn: urn("ContactProperty", "preview"), ID: "prop_1", DryRun: true,
+		State:     property.NewMap(map[string]property.Value{"key": property.New("company_name"), "type": property.New("string"), "createdAt": property.New("2026-04-08 00:11:13.110779+00")}),
+		OldInputs: property.NewMap(map[string]property.Value{"key": property.New("company_name"), "type": property.New("string")}),
+		Inputs:    inputs,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, inputs, updated.Properties.Delete("createdAt"))
+	assert.Empty(t, fake.updates)
+}
+
+func TestContactPropertyUnsupportedTypeDoesNotPartiallyEnforceEnum(t *testing.T) {
+	fake := &fakeContactProperties{properties: map[string]*resend.ContactProperty{}}
+	s := testServer(t, func(c *resend.Client) { c.ContactProperties = fake })
+
+	_, err := s.Diff(p.DiffRequest{
+		Urn:   urn("ContactProperty", "custom"),
+		ID:    "prop_1",
+		State: property.NewMap(map[string]property.Value{"key": property.New("custom"), "type": property.New("custom"), "createdAt": property.New("2026-04-08 00:11:13.110779+00")}),
+		Inputs: property.NewMap(map[string]property.Value{
+			"key":           property.New("custom"),
+			"type":          property.New("custom"),
+			"fallbackValue": property.New("value"),
+		}),
+	})
+	require.NoError(t, err)
 }
 
 func TestTopicImportReadRefreshesInputsAndOutputs(t *testing.T) {
