@@ -161,7 +161,7 @@ class Domain(pulumi.CustomResource):
     def __init__(__self__,
                  resource_name: str,
                  opts: Optional[pulumi.ResourceOptions] = None,
-                 capabilities: pulumi.Input[Optional[Union['DomainCapabilitiesArgs', 'DomainCapabilitiesArgsDict']]] = None,
+                 capabilities: pulumi.Input[Optional[Union['DomainCapabilitiesArgs', 'DomainCapabilitiesArgsDict', 'outputs.DomainCapabilities']]] = None,
                  click_tracking: pulumi.Input[Optional[_builtins.bool]] = None,
                  custom_return_path: pulumi.Input[Optional[_builtins.str]] = None,
                  name: pulumi.Input[Optional[_builtins.str]] = None,
@@ -175,7 +175,7 @@ class Domain(pulumi.CustomResource):
 
         :param str resource_name: The name of the resource.
         :param pulumi.ResourceOptions opts: Options for the resource.
-        :param pulumi.Input[Union['DomainCapabilitiesArgs', 'DomainCapabilitiesArgsDict']] capabilities: Enable `sending` and/or `receiving` for this domain.
+        :param pulumi.Input[Union['DomainCapabilitiesArgs', 'DomainCapabilitiesArgsDict', 'outputs.DomainCapabilities']] capabilities: Enable `sending` and/or `receiving` for this domain.
         :param pulumi.Input[_builtins.bool] click_tracking: Track link clicks in HTML emails. Requires a verified tracking subdomain.
         :param pulumi.Input[_builtins.str] custom_return_path: The subdomain used for the Return-Path address. Defaults to `send`.
         :param pulumi.Input[_builtins.str] name: The domain name, e.g. `example.com`.
@@ -208,7 +208,7 @@ class Domain(pulumi.CustomResource):
     def _internal_init(__self__,
                  resource_name: str,
                  opts: Optional[pulumi.ResourceOptions] = None,
-                 capabilities: pulumi.Input[Optional[Union['DomainCapabilitiesArgs', 'DomainCapabilitiesArgsDict']]] = None,
+                 capabilities: pulumi.Input[Optional[Union['DomainCapabilitiesArgs', 'DomainCapabilitiesArgsDict', 'outputs.DomainCapabilities']]] = None,
                  click_tracking: pulumi.Input[Optional[_builtins.bool]] = None,
                  custom_return_path: pulumi.Input[Optional[_builtins.str]] = None,
                  name: pulumi.Input[Optional[_builtins.str]] = None,
