@@ -1,11 +1,17 @@
 name: artifacts
 
+# The merge queue generates the artifacts for each commit before it lands on
+# main, so every main commit has its pulumi-artifacts note as soon as it is
+# reachable. The `artifacts` job is the required check: on a pull request the
+# build is skipped and the check passes; in the merge queue it passes only
+# when the artifacts were committed.
 on:
-  push:
-    branches: [main]
+  pull_request:
+  merge_group:
 
 jobs:
   build:
+    if: github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -34,3 +40,20 @@ jobs:
     with:
       provider-artifact: provider
       provider-binary: pulumi-resource-resend
+
+  artifacts:
+    needs: publish
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          EVENT: ${{ github.event_name }}
+          RESULT: ${{ needs.publish.result }}
+        run: |
+          case "$EVENT:$RESULT" in
+            merge_group:success | pull_request:skipped) ;;
+            *)
+              echo "::error::publish finished with result '$RESULT' on event '$EVENT'"
+              exit 1
+              ;;
+          esac

@@ -159,5 +159,9 @@ go build -o pulumi-resource-resend && pulumi package get-schema ./pulumi-resourc
 # PR CI compares that schema with the merge-base commit's pulumi-artifacts/schema.json using pulumi/schema-tools v0.8.1.
 ```
 
+Pull requests merge through the merge queue. The queue builds the
+`pulumi-artifacts` commit for each merge before it lands on `main`, so every
+`main` commit has its artifacts as soon as it exists.
+
 Releases are cut by pushing a `v*` tag; goreleaser builds the
 `pulumi-resource-resend-v<version>-<os>-<arch>.tar.gz` assets Pulumi expects.
