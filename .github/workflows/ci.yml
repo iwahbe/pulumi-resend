@@ -46,6 +46,40 @@ jobs:
           test -n "$sha"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "Baseline source commit: $sha"
+      # The artifacts workflow records a note for a main commit once its SDKs
+      # are committed, so a pull request based on a fresh main commit can run
+      # before its baseline exists. Wait for the note, and fail fast if the
+      # artifacts run for the commit did not succeed.
+      - name: Wait for the baseline artifacts
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ steps.baseline-source.outputs.sha }}
+          NOTES_REF: refs/notes/pulumi-artifacts
+        run: |
+          set -euo pipefail
+          deadline=$((SECONDS + 20 * 60))
+          while :; do
+            git fetch -q origin "+${NOTES_REF}:${NOTES_REF}" 2>/dev/null || true
+            if git notes --ref=pulumi-artifacts show "$SHA" >/dev/null 2>&1; then
+              echo "Artifacts for $SHA are recorded."
+              exit 0
+            fi
+            run="$(gh run list --workflow artifacts.yml --event push --commit "$SHA" \
+              --limit 1 --json status,conclusion,url --jq '.[0] // {}')"
+            status="$(jq -r '.status // "not found"' <<<"$run")"
+            conclusion="$(jq -r '.conclusion // ""' <<<"$run")"
+            if [ "$status" = completed ] && [ "$conclusion" != success ]; then
+              echo "::error::the artifacts run for $SHA finished with conclusion '$conclusion': $(jq -r .url <<<"$run")"
+              exit 1
+            fi
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::error::no artifacts recorded for $SHA after 20 minutes (artifacts run: $status)"
+              exit 1
+            fi
+            echo "Waiting for the artifacts of $SHA (artifacts run: $status)."
+            sleep 15
+          done
       - uses: iwahbe/pulumi-publish@211f1f684151767629c827f9471fb5997cae0825 # main
         if: github.event_name == 'pull_request'
         with:
