@@ -182,8 +182,8 @@ github.com/pulumi/pulumi-go-provider v1.6.1-0.20260829154606-bb685e170431 h1:omt
 github.com/pulumi/pulumi-go-provider v1.6.1-0.20260829154606-bb685e170431/go.mod h1:3hqQmZP/8R+gSe+sXhvhf0MNP8SXOXM01lYSdXIoGP0=
 github.com/pulumi/pulumi/pkg/v3 v3.260.0 h1:ZX83V+7CpqH/OP3Ah47qxPFv74CkGUP409FxkRu82d0=
 github.com/pulumi/pulumi/pkg/v3 v3.260.0/go.mod h1:WcSKTjki8HV49yGh+g48kmFN/voAZ5O6CK8l4EvZs9s=
-github.com/pulumi/pulumi/sdk/v3 v3.261.0 h1:1C2V6bxzO9UBe91PRebO/zeiUIQ2C05eRNkVFvJuuqc=
-github.com/pulumi/pulumi/sdk/v3 v3.261.0/go.mod h1:xlOo55i2hj5tDyMY8diTS5LfFAn2sFew+50d67sVNdg=
+github.com/pulumi/pulumi/sdk/v3 v3.263.0 h1:hj86JpRgRvtL2Fy0nR+zx2bT6LMMvAn3EK+3L/f3cEo=
+github.com/pulumi/pulumi/sdk/v3 v3.263.0/go.mod h1:xlOo55i2hj5tDyMY8diTS5LfFAn2sFew+50d67sVNdg=
 github.com/resend/resend-go/v4 v4.3.0 h1:iCcuTyUqX5QxFahfea3+A/U88+aUWlXD5c8ywkX6uI8=
 github.com/resend/resend-go/v4 v4.3.0/go.mod h1:96jCV9Fb2HoQAnPOgGXURcbBZxCtLrul8e5iwKJ/E/g=
 github.com/rivo/uniseg v0.4.7 h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
