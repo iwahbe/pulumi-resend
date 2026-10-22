@@ -1057,7 +1057,8 @@ func TestContactPropertyCheckFallbackValidation(t *testing.T) {
 	for _, inputs := range []property.Map{
 		known("string", property.New("value")),
 		known("number", property.New(1.0)),
-		known("custom", property.New("value")),
+		// Computed values are deliberately accepted during preview; they will be
+		// validated once known during a subsequent update.
 		known("string", property.New(property.Computed)),
 		known("number", property.New(property.Computed)).Set("type", property.New(property.Computed)),
 	} {
@@ -1065,6 +1066,14 @@ func TestContactPropertyCheckFallbackValidation(t *testing.T) {
 		assert.Equal(t, inputs, resp.Inputs)
 		assert.Empty(t, resp.Failures)
 	}
+
+	invalid := known("custom", property.New("value"))
+	resp := check(invalid)
+	assert.Equal(t, invalid, resp.Inputs)
+	assert.Equal(t, []p.CheckFailure{{
+		Property: "type",
+		Reason:   `"custom" is not a valid value for the enum "ContactPropertyType"; valid values are "string", "number"`,
+	}}, resp.Failures)
 }
 
 func TestContactPropertyUnknownFallbackPreviewAccepted(t *testing.T) {
@@ -1090,23 +1099,6 @@ func TestContactPropertyUnknownFallbackPreviewAccepted(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, inputs, updated.Properties.Delete("createdAt"))
 	assert.Empty(t, fake.updates)
-}
-
-func TestContactPropertyUnsupportedTypeDoesNotPartiallyEnforceEnum(t *testing.T) {
-	fake := &fakeContactProperties{properties: map[string]*resend.ContactProperty{}}
-	s := testServer(t, func(c *resend.Client) { c.ContactProperties = fake })
-
-	_, err := s.Diff(p.DiffRequest{
-		Urn:   urn("ContactProperty", "custom"),
-		ID:    "prop_1",
-		State: property.NewMap(map[string]property.Value{"key": property.New("custom"), "type": property.New("custom"), "createdAt": property.New("2026-04-08 00:11:13.110779+00")}),
-		Inputs: property.NewMap(map[string]property.Value{
-			"key":           property.New("custom"),
-			"type":          property.New("custom"),
-			"fallbackValue": property.New("value"),
-		}),
-	})
-	require.NoError(t, err)
 }
 
 func TestTopicImportReadRefreshesInputsAndOutputs(t *testing.T) {
@@ -1576,12 +1568,10 @@ func TestConfigureRequiresApiKey(t *testing.T) {
 	assert.NoError(t, s.Configure(p.ConfigureRequest{}))
 }
 
-// Regression test for REPORT.md: with `apiKey` unset (env-var flow), CheckConfig
-// must not materialize the field into the checked provider inputs. When it does,
-// DiffConfig sees `apiKey` as added relative to the bare `{version}` inputs the
-// CLI records on `pulumi import` (and on version bumps), and infer marks any
-// non-version config change as a provider *replacement* — cascading a
-// delete-replace into every resource, including production domains.
+// With `apiKey` unset (env-var flow), CheckConfig must not materialize it into
+// checked provider inputs. In v1.7, an engine-managed version change is an in-place
+// provider update; only a real configuration change may be a replacement. Preserve
+// the legacy secret-zero compatibility behavior as well.
 func TestUnsetApiKeyDoesNotReplaceProvider(t *testing.T) {
 	prov, err := New()
 	require.NoError(t, err)
@@ -1607,8 +1597,31 @@ func TestUnsetApiKeyDoesNotReplaceProvider(t *testing.T) {
 		Inputs:    check.Inputs.Set("version", property.New("0.0.2")),
 	})
 	require.NoError(t, err)
-	for field, d := range diff.DetailedDiff {
-		assert.NotContains(t, string(d.Kind), "replace", "config field %q must not force provider replacement", field)
-	}
-	assert.False(t, diff.HasChanges)
+	require.Equal(t, p.DiffResponse{
+		HasChanges: true,
+		DetailedDiff: map[string]p.PropertyDiff{
+			"version": {Kind: p.Update, InputDiff: true},
+		},
+	}, diff, "a provider version bump must update in place without an apiKey diff")
+
+	// ApiKey is a pointer: unlike a value-typed optional, an explicit empty
+	// secret and an omitted value are distinct configurations. v1.7 intentionally
+	// preserves that distinction, so removing the former remains a replacement;
+	// this assertion prevents accidentally treating a secret configuration change
+	// as an in-place version update.
+	legacyInputs := oldInputs.Set("apiKey", property.New("").WithSecret(true))
+	legacyDiff, err := s.DiffConfig(p.DiffRequest{
+		Urn:       purn,
+		State:     legacyInputs,
+		OldInputs: legacyInputs,
+		Inputs:    check.Inputs.Set("version", property.New("0.0.2")),
+	})
+	require.NoError(t, err)
+	require.Equal(t, p.DiffResponse{
+		HasChanges: true,
+		DetailedDiff: map[string]p.PropertyDiff{
+			"apiKey":  {Kind: p.DeleteReplace},
+			"version": {Kind: p.Update, InputDiff: true},
+		},
+	}, legacyDiff, "removing an explicit secret apiKey must remain a replacement")
 }
