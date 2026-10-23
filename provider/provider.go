@@ -19,7 +19,7 @@ const Name = "resend"
 var Version = "0.0.0-dev"
 
 func New() (p.Provider, error) {
-	return infer.NewProviderBuilder().
+	prov, err := infer.NewProviderBuilder().
 		WithDisplayName("Resend").
 		WithDescription("A Pulumi provider for managing Resend email infrastructure.").
 		WithNamespace("iwahbe").
@@ -32,6 +32,9 @@ func New() (p.Provider, error) {
 		WithConfig(infer.Config(&Config{})).
 		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{"provider": "index"}).
 		WithHomepage("https://resend.com/").
+		WithFunctions(
+			infer.Function(&GetDomainId{}),
+		).
 		WithResources(
 			infer.Resource(&Domain{}),
 			infer.Resource(&DomainVerification{}),
@@ -42,6 +45,10 @@ func New() (p.Provider, error) {
 			infer.Resource(&Webhook{}),
 		).
 		Build()
+	if err != nil {
+		return p.Provider{}, err
+	}
+	return exposeGetDomainId(prov)
 }
 
 type Config struct {

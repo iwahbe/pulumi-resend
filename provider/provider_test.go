@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -53,6 +54,8 @@ type fakeDomains struct {
 	verified          bool
 	statusAfterVerify string
 	notFoundErr       error
+	listErr           error
+	listCalls         int
 }
 
 func (f *fakeDomains) CreateWithContext(ctx context.Context, params *resend.CreateDomainRequest) (resend.CreateDomainResponse, error) {
@@ -77,6 +80,18 @@ func (f *fakeDomains) CreateWithContext(ctx context.Context, params *resend.Crea
 		Id: d.Id, Name: d.Name, CreatedAt: d.CreatedAt, Status: d.Status,
 		Records: d.Records, Region: d.Region,
 	}, nil
+}
+
+func (f *fakeDomains) ListWithContext(ctx context.Context) (resend.ListDomainsResponse, error) {
+	f.listCalls++
+	if f.listErr != nil {
+		return resend.ListDomainsResponse{}, f.listErr
+	}
+	data := make([]resend.Domain, 0, len(f.domains))
+	for _, domain := range f.domains {
+		data = append(data, *domain)
+	}
+	return resend.ListDomainsResponse{Data: data}, nil
 }
 
 func (f *fakeDomains) GetWithContext(ctx context.Context, id string) (resend.Domain, error) {
@@ -132,6 +147,66 @@ func (f *fakeDomains) missingError(msg string) error {
 		return f.notFoundErr
 	}
 	return fmt.Errorf("[ERROR]: %s", msg)
+}
+
+func TestGetDomainId(t *testing.T) {
+	fake := &fakeDomains{domains: map[string]*resend.Domain{
+		"dom_1": {Id: "dom_1", Name: "example.com"},
+	}}
+	s := testServer(t, func(c *resend.Client) { c.Domains = fake })
+
+	resp, err := s.Invoke(p.InvokeRequest{
+		Token: "resend:index:getDomainId",
+		Args:  property.NewMap(map[string]property.Value{"name": property.New("example.com")}),
+	})
+	require.NoError(t, err)
+	assert.Empty(t, resp.Failures)
+	assert.Equal(t, property.NewMap(map[string]property.Value{"id": property.New("dom_1")}), resp.Return)
+	assert.Equal(t, 1, fake.listCalls)
+}
+
+func TestGetDomainIdNoMatch(t *testing.T) {
+	// Name matching is deliberately exact: Resend's returned name is not normalized.
+	fake := &fakeDomains{domains: map[string]*resend.Domain{
+		"dom_1": {Id: "dom_1", Name: "example.com"},
+	}}
+	s := testServer(t, func(c *resend.Client) { c.Domains = fake })
+
+	_, err := s.Invoke(p.InvokeRequest{
+		Token: "resend:index:getDomainId",
+		Args:  property.NewMap(map[string]property.Value{"name": property.New("EXAMPLE.com")}),
+	})
+	require.EqualError(t, err, `no Resend domain found with name "EXAMPLE.com"`)
+	assert.Equal(t, 1, fake.listCalls)
+}
+
+func TestGetDomainIdAmbiguous(t *testing.T) {
+	fake := &fakeDomains{domains: map[string]*resend.Domain{
+		"dom_1": {Id: "dom_1", Name: "example.com"},
+		"dom_2": {Id: "dom_2", Name: "example.com"},
+	}}
+	s := testServer(t, func(c *resend.Client) { c.Domains = fake })
+
+	_, err := s.Invoke(p.InvokeRequest{
+		Token: "resend:index:getDomainId",
+		Args:  property.NewMap(map[string]property.Value{"name": property.New("example.com")}),
+	})
+	require.EqualError(t, err, `multiple Resend domains found with name "example.com"; lookup is ambiguous`)
+	assert.Equal(t, 1, fake.listCalls)
+}
+
+func TestGetDomainIdListError(t *testing.T) {
+	upstream := errors.New("upstream unavailable")
+	fake := &fakeDomains{domains: map[string]*resend.Domain{}, listErr: upstream}
+	s := testServer(t, func(c *resend.Client) { c.Domains = fake })
+
+	_, err := s.Invoke(p.InvokeRequest{
+		Token: "resend:index:getDomainId",
+		Args:  property.NewMap(map[string]property.Value{"name": property.New("example.com")}),
+	})
+	require.ErrorIs(t, err, upstream)
+	require.EqualError(t, err, `listing domains while looking up domain "example.com": upstream unavailable`)
+	assert.Equal(t, 1, fake.listCalls)
 }
 
 func TestDomainLifecycle(t *testing.T) {
