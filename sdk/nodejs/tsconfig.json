@@ -25,6 +25,7 @@
         "contactProperty.ts",
         "domain.ts",
         "domainVerification.ts",
+        "getDomainId.ts",
         "index.ts",
         "provider.ts",
         "segment.ts",

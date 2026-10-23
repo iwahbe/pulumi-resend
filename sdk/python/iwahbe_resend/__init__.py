@@ -11,6 +11,7 @@ from .api_key import *
 from .contact_property import *
 from .domain import *
 from .domain_verification import *
+from .get_domain_id import *
 from .provider import *
 from .segment import *
 from .topic import *

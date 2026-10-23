@@ -25,6 +25,11 @@ export type DomainVerification = import("./domainVerification").DomainVerificati
 export const DomainVerification: typeof import("./domainVerification").DomainVerification = null as any;
 utilities.lazyLoad(exports, ["DomainVerification"], () => require("./domainVerification"));
 
+export { GetDomainIdArgs, GetDomainIdResult, GetDomainIdOutputArgs } from "./getDomainId";
+export const getDomainId: typeof import("./getDomainId").getDomainId = null as any;
+export const getDomainIdOutput: typeof import("./getDomainId").getDomainIdOutput = null as any;
+utilities.lazyLoad(exports, ["getDomainId","getDomainIdOutput"], () => require("./getDomainId"));
+
 export { ProviderArgs } from "./provider";
 export type Provider = import("./provider").Provider;
 export const Provider: typeof import("./provider").Provider = null as any;

@@ -1,7 +1,7 @@
 {
   "name": "resend",
   "displayName": "Resend",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "A Pulumi provider for managing Resend email infrastructure.",
   "homepage": "https://resend.com/",
   "license": "Apache-2.0",
@@ -579,6 +579,35 @@
         "endpoint",
         "events"
       ]
+    }
+  },
+  "functions": {
+    "resend:index:getDomainId": {
+      "description": "Looks up a Resend domain ID by domain name.",
+      "inputs": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The domain name to look up. It is matched exactly as returned by Resend; no case, whitespace, or trailing-dot normalization is applied."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ]
+      },
+      "outputs": {
+        "properties": {
+          "id": {
+            "description": "The Resend domain ID.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      }
     }
   }
 }
