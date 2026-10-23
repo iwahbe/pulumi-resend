@@ -33,9 +33,16 @@ func (g *GetDomainIdResult) Annotate(a infer.Annotator) {
 func (*GetDomainId) Invoke(
 	ctx context.Context, req infer.FunctionRequest[GetDomainIdArgs],
 ) (infer.FunctionResponse[GetDomainIdResult], error) {
+	if req.Input.Name == "" {
+		return infer.FunctionResponse[GetDomainIdResult]{}, fmt.Errorf("domain name must not be empty")
+	}
+
 	resp, err := getClient(ctx).Domains.ListWithContext(ctx)
 	if err != nil {
 		return infer.FunctionResponse[GetDomainIdResult]{}, fmt.Errorf("listing domains while looking up domain %q: %w", req.Input.Name, err)
+	}
+	if resp.HasMore {
+		return infer.FunctionResponse[GetDomainIdResult]{}, fmt.Errorf("listing domains while looking up domain %q: result is paginated; cannot safely determine a unique domain ID", req.Input.Name)
 	}
 
 	var matches []string

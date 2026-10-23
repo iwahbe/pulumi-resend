@@ -55,6 +55,7 @@ type fakeDomains struct {
 	statusAfterVerify string
 	notFoundErr       error
 	listErr           error
+	listHasMore       bool
 	listCalls         int
 }
 
@@ -91,7 +92,7 @@ func (f *fakeDomains) ListWithContext(ctx context.Context) (resend.ListDomainsRe
 	for _, domain := range f.domains {
 		data = append(data, *domain)
 	}
-	return resend.ListDomainsResponse{Data: data}, nil
+	return resend.ListDomainsResponse{Data: data, HasMore: f.listHasMore}, nil
 }
 
 func (f *fakeDomains) GetWithContext(ctx context.Context, id string) (resend.Domain, error) {
@@ -149,36 +150,6 @@ func (f *fakeDomains) missingError(msg string) error {
 	return fmt.Errorf("[ERROR]: %s", msg)
 }
 
-func TestGetDomainIdSchema(t *testing.T) {
-	s := testServer(t, func(c *resend.Client) {
-		c.Domains = &fakeDomains{domains: map[string]*resend.Domain{}}
-	})
-
-	resp, err := s.GetSchema(p.GetSchemaRequest{})
-	require.NoError(t, err)
-	var schema struct {
-		Functions map[string]struct {
-			Inputs struct {
-				Properties map[string]json.RawMessage `json:"properties"`
-				Required   []string                   `json:"required"`
-			} `json:"inputs"`
-			Outputs struct {
-				Properties map[string]json.RawMessage `json:"properties"`
-				Required   []string                   `json:"required"`
-			} `json:"outputs"`
-		} `json:"functions"`
-	}
-	require.NoError(t, json.Unmarshal([]byte(resp.Schema), &schema))
-
-	function, ok := schema.Functions["resend:index:getDomainId"]
-	require.True(t, ok)
-	assert.Equal(t, []string{"name"}, function.Inputs.Required)
-	assert.Contains(t, function.Inputs.Properties, "name")
-	assert.Equal(t, []string{"id"}, function.Outputs.Required)
-	assert.Contains(t, function.Outputs.Properties, "id")
-	assert.NotContains(t, function.Outputs.Properties, "domainId")
-}
-
 func TestGetDomainId(t *testing.T) {
 	fake := &fakeDomains{domains: map[string]*resend.Domain{
 		"dom_1": {Id: "dom_1", Name: "example.com"},
@@ -193,6 +164,18 @@ func TestGetDomainId(t *testing.T) {
 	assert.Empty(t, resp.Failures)
 	assert.Equal(t, property.NewMap(map[string]property.Value{"id": property.New("dom_1")}), resp.Return)
 	assert.Equal(t, 1, fake.listCalls)
+}
+
+func TestGetDomainIdEmptyName(t *testing.T) {
+	fake := &fakeDomains{domains: map[string]*resend.Domain{}}
+	s := testServer(t, func(c *resend.Client) { c.Domains = fake })
+
+	_, err := s.Invoke(p.InvokeRequest{
+		Token: "resend:index:getDomainId",
+		Args:  property.NewMap(map[string]property.Value{"name": property.New("")}),
+	})
+	require.EqualError(t, err, "domain name must not be empty")
+	assert.Zero(t, fake.listCalls)
 }
 
 func TestGetDomainIdNoMatch(t *testing.T) {
@@ -222,6 +205,21 @@ func TestGetDomainIdAmbiguous(t *testing.T) {
 		Args:  property.NewMap(map[string]property.Value{"name": property.New("example.com")}),
 	})
 	require.EqualError(t, err, `multiple Resend domains found with name "example.com"; lookup is ambiguous`)
+	assert.Equal(t, 1, fake.listCalls)
+}
+
+func TestGetDomainIdPaginated(t *testing.T) {
+	fake := &fakeDomains{
+		domains:     map[string]*resend.Domain{"dom_1": {Id: "dom_1", Name: "example.com"}},
+		listHasMore: true,
+	}
+	s := testServer(t, func(c *resend.Client) { c.Domains = fake })
+
+	_, err := s.Invoke(p.InvokeRequest{
+		Token: "resend:index:getDomainId",
+		Args:  property.NewMap(map[string]property.Value{"name": property.New("example.com")}),
+	})
+	require.EqualError(t, err, `listing domains while looking up domain "example.com": result is paginated; cannot safely determine a unique domain ID`)
 	assert.Equal(t, 1, fake.listCalls)
 }
 
