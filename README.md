@@ -20,20 +20,7 @@ A Pulumi provider for managing [Resend](https://resend.com) email infrastructure
 - `resend:index:Topic` — a broadcast topic for contact subscription preferences.
 - `resend:index:Webhook` — an event webhook. The `signingSecret` output is a secret.
 
-## Functions
-
-- `resend:index:getDomainId` — looks up a Resend domain ID from a domain name. Names
-  are matched with exact string equality; the lookup does not normalize case,
-  whitespace, or trailing dots.
-
-```ts
-import * as resend from "@pulumi/resend";
-
-const domain = resend.getDomainIdOutput({ name: "example.com" });
-export const domainId = domain.id;
-```
-
-## Domain verification workflow
+### Domain verification workflow
 
 `DomainVerification` is an intentional, operator-approved imperative exception in
 this provider. Most resources model CRUD operations only, but domain readiness often
@@ -146,6 +133,19 @@ any existing secret value already present in Pulumi state. On import, there is n
 prior state to preserve, so unrecoverable values are recorded as empty secret
 outputs (`ApiKey.token`, and `Webhook.signingSecret` when Resend omits it). If you
 need those values after import, use [`pulumi state taint`](https://www.pulumi.com/docs/iac/cli/commands/pulumi_state_taint/) to force resource recreation.
+
+## Functions
+
+- `resend:index:getDomainId` — looks up a Resend domain ID from a domain name. Names
+  are matched with exact string equality; the lookup does not normalize case,
+  whitespace, or trailing dots.
+
+```ts
+import * as resend from "@pulumi/resend";
+
+const domain = resend.getDomainIdOutput({ name: "example.com" });
+export const domainId = domain.id;
+```
 
 ## Configuration
 
