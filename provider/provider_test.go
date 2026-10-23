@@ -149,6 +149,36 @@ func (f *fakeDomains) missingError(msg string) error {
 	return fmt.Errorf("[ERROR]: %s", msg)
 }
 
+func TestGetDomainIdSchema(t *testing.T) {
+	s := testServer(t, func(c *resend.Client) {
+		c.Domains = &fakeDomains{domains: map[string]*resend.Domain{}}
+	})
+
+	resp, err := s.GetSchema(p.GetSchemaRequest{})
+	require.NoError(t, err)
+	var schema struct {
+		Functions map[string]struct {
+			Inputs struct {
+				Properties map[string]json.RawMessage `json:"properties"`
+				Required   []string                   `json:"required"`
+			} `json:"inputs"`
+			Outputs struct {
+				Properties map[string]json.RawMessage `json:"properties"`
+				Required   []string                   `json:"required"`
+			} `json:"outputs"`
+		} `json:"functions"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(resp.Schema), &schema))
+
+	function, ok := schema.Functions["resend:index:getDomainId"]
+	require.True(t, ok)
+	assert.Equal(t, []string{"name"}, function.Inputs.Required)
+	assert.Contains(t, function.Inputs.Properties, "name")
+	assert.Equal(t, []string{"id"}, function.Outputs.Required)
+	assert.Contains(t, function.Outputs.Properties, "id")
+	assert.NotContains(t, function.Outputs.Properties, "domainId")
+}
+
 func TestGetDomainId(t *testing.T) {
 	fake := &fakeDomains{domains: map[string]*resend.Domain{
 		"dom_1": {Id: "dom_1", Name: "example.com"},
