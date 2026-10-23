@@ -134,6 +134,19 @@ prior state to preserve, so unrecoverable values are recorded as empty secret
 outputs (`ApiKey.token`, and `Webhook.signingSecret` when Resend omits it). If you
 need those values after import, use [`pulumi state taint`](https://www.pulumi.com/docs/iac/cli/commands/pulumi_state_taint/) to force resource recreation.
 
+## Functions
+
+- `resend:index:getDomainId` — looks up a Resend domain ID from a domain name. Names
+  are matched with exact string equality; the lookup does not normalize case,
+  whitespace, or trailing dots.
+
+```ts
+import * as resend from "@pulumi/resend";
+
+const domain = resend.getDomainIdOutput({ name: "example.com" });
+export const domainId = domain.id;
+```
+
 ## Configuration
 
 | Key      | Description                                                        |

@@ -32,6 +32,9 @@ func New() (p.Provider, error) {
 		WithConfig(infer.Config(&Config{})).
 		WithModuleMap(map[tokens.ModuleName]tokens.ModuleName{"provider": "index"}).
 		WithHomepage("https://resend.com/").
+		WithFunctions(
+			infer.Function(&GetDomainId{}),
+		).
 		WithResources(
 			infer.Resource(&Domain{}),
 			infer.Resource(&DomainVerification{}),
