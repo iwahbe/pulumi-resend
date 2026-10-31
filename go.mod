@@ -6,7 +6,7 @@ require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/pulumi/pulumi-go-provider v1.7.1-0.20261023215205-c1877607a5fd
 	github.com/pulumi/pulumi/sdk/v3 v3.272.0
-	github.com/resend/resend-go/v4 v4.9.0
+	github.com/resend/resend-go/v4 v4.9.1
 	github.com/stretchr/testify v1.12.1
 )
 
