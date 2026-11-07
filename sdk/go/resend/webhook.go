@@ -75,6 +75,12 @@ func (WebhookState) ElementType() reflect.Type {
 	return reflect.TypeOf((*webhookState)(nil)).Elem()
 }
 
+// WebhookExists checks whether an existing Webhook resource with the given ID exists.
+func WebhookExists(ctx *pulumi.Context,
+	id pulumi.StringInput, state *WebhookState, opts ...pulumi.ResourceOption) pulumi.BoolOutput {
+	return ctx.ExistsResource("resend:index:Webhook", id, state, "", opts...)
+}
+
 type webhookArgs struct {
 	// The HTTPS URL events are delivered to.
 	Endpoint string `pulumi:"endpoint"`

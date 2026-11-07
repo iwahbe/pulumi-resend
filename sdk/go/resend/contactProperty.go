@@ -76,6 +76,12 @@ func (ContactPropertyState) ElementType() reflect.Type {
 	return reflect.TypeOf((*contactPropertyState)(nil)).Elem()
 }
 
+// ContactPropertyExists checks whether an existing ContactProperty resource with the given ID exists.
+func ContactPropertyExists(ctx *pulumi.Context,
+	id pulumi.StringInput, state *ContactPropertyState, opts ...pulumi.ResourceOption) pulumi.BoolOutput {
+	return ctx.ExistsResource("resend:index:ContactProperty", id, state, "", opts...)
+}
+
 type contactPropertyArgs struct {
 	// Optional fallback value used when a contact does not have this property set. Values must match `type` (`string` or `number`). Fallback changes, including clearing a previously non-null fallback, update in place.
 	FallbackValue interface{} `pulumi:"fallbackValue"`

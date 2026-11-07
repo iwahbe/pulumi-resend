@@ -75,6 +75,12 @@ func (TopicState) ElementType() reflect.Type {
 	return reflect.TypeOf((*topicState)(nil)).Elem()
 }
 
+// TopicExists checks whether an existing Topic resource with the given ID exists.
+func TopicExists(ctx *pulumi.Context,
+	id pulumi.StringInput, state *TopicState, opts ...pulumi.ResourceOption) pulumi.BoolOutput {
+	return ctx.ExistsResource("resend:index:Topic", id, state, "", opts...)
+}
+
 type topicArgs struct {
 	// The default subscription preference for new contacts, either `opt_in` or `opt_out`. Resend does not allow this value to change after creation, so changes replace the topic.
 	DefaultSubscription TopicDefaultSubscription `pulumi:"defaultSubscription"`
