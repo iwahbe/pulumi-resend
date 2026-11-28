@@ -5,7 +5,7 @@ go 1.27.4
 require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/pulumi/pulumi-go-provider v1.8.0
-	github.com/pulumi/pulumi/sdk/v3 v3.277.0
+	github.com/pulumi/pulumi/sdk/v3 v3.278.0
 	github.com/resend/resend-go/v4 v4.12.1
 	github.com/stretchr/testify v1.12.1
 )
